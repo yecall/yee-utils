@@ -1,153 +1,118 @@
-use crate::modules::{base, Command, Module};
 use clap::{Arg, ArgMatches, SubCommand};
+use rand::Rng;
+use rand::thread_rng;
+use serde::Serialize;
+use yee_primitives::{AddressCodec, Hrp};
+use yee_sharding_primitives::utils;
+use yee_signer::KeyPair;
+
+use crate::modules::{base, Command, Module};
+use crate::modules::base::Hex;
 
 pub fn module<'a, 'b>() -> Module<'a, 'b> {
 	Module {
-		desc: "Number 10/2/8/16 base conversion".to_string(),
+		desc: "Key tool".to_string(),
 		commands: commands(),
 		get_cases: cases::cases,
 	}
 }
 
 pub fn commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
+	let mut app = SubCommand::with_name("key")
+		.about("Key tool");
+	for sub_command in sub_commands() {
+		app = app.subcommand(sub_command.app);
+	}
+	let f = run;
+
 	vec![Command {
-		app: SubCommand::with_name("ns")
-			.about("Number system")
-			.arg(
-				Arg::with_name("DECIMAL")
-					.long("decimal")
-					.short("d")
-					.help("Output decimal result")
-					.required(false),
-			)
-			.arg(
-				Arg::with_name("BINARY")
-					.long("binary")
-					.short("b")
-					.help("Output binary result")
-					.required(false),
-			)
-			.arg(
-				Arg::with_name("OCTAL")
-					.long("octal")
-					.short("o")
-					.help("Output octal result")
-					.required(false),
-			)
-			.arg(
-				Arg::with_name("HEXADECIMAL")
-					.long("hexadecimal")
-					.short("x")
-					.help("Output hexadecimal result")
-					.required(false),
-			)
-			.arg(Arg::with_name("INPUT").required(false).index(1)),
-		f: ns,
+		app,
+		f,
 	}]
 }
 
-fn ns(matches: &ArgMatches) -> Result<Vec<String>, String> {
-	let input = base::input_string(matches)?;
+fn run(matches: &ArgMatches) -> Result<Vec<String>, String> {
+	base::run(matches, || sub_commands(), || commands())
+}
 
-	let (radix, number) = match input {
-		_ if input.starts_with("0b") => (2, &input[2..]),
-		_ if input.starts_with("0o") => (8, &input[2..]),
-		_ if input.starts_with("0x") => (16, &input[2..]),
-		_ => (10, &input[..]),
+fn sub_commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
+	vec![
+		Command {
+			app: SubCommand::with_name("generate")
+				.about("Generate key pair")
+				.arg(
+					Arg::with_name("SHARD_NUM")
+						.long("shard-num")
+						.short("s").help("Shard number")
+						.takes_value(true)
+						.required(true))
+				.arg(
+					Arg::with_name("SHARD_COUNT")
+						.long("shard-count")
+						.short("c").help("Shard count")
+						.takes_value(true)
+						.required(true)),
+			f: generate,
+		}
+	]
+}
+
+fn generate(matches: &ArgMatches) -> Result<Vec<String>, String> {
+	let shard_num = matches.value_of("SHARD_NUM").expect("qed").parse::<u16>().map_err(|_|"invalid shard num")?;
+	let shard_count = matches.value_of("SHARD_COUNT").expect("qed").parse::<u16>().map_err(|_|"invalid shard count")?;
+
+	let (mini_secret_key, public_key, secret_key, address, testnet_address) = loop {
+		let mini_secret_key = random_32_bytes(&mut thread_rng());
+		let key_pair = KeyPair::from_mini_secret_key(&mini_secret_key)?;
+		let public_key = key_pair.public_key();
+		let secret_key = key_pair.secret_key();
+		let address_shard_num = utils::shard_num_for_bytes(&public_key, shard_count);
+		if address_shard_num == Some(shard_num) {
+
+			let address = public_key.to_address(Hrp::MAINNET).map_err(|_e| "address encode failed")?;
+			let testnet_address = public_key.to_address(Hrp::TESTNET).map_err(|_e| "address encode failed")?;
+
+			break (mini_secret_key, public_key, secret_key, address, testnet_address)
+		}
 	};
 
-	let number = u64::from_str_radix(number, radix).map_err(|_| "Invalid input")?;
-
-	let mut results = Vec::new();
-
-	if matches.is_present("DECIMAL") {
-		results.push(format!("{}", number));
-	}
-	if matches.is_present("BINARY") {
-		results.push(format!("0b{:b}", number));
-	}
-	if matches.is_present("OCTAL") {
-		results.push(format!("0o{:o}", number));
-	}
-	if matches.is_present("HEXADECIMAL") {
-		results.push(format!("0x{:x}", number));
-	}
-	if results.len() == 0 {
-		results = vec![
-			format!("{}", number),
-			format!("0b{:b}", number),
-			format!("0o{:o}", number),
-			format!("0x{:x}", number),
-		];
+	#[derive(Serialize)]
+	struct Output {
+		shard_num: u16,
+		shard_count: u16,
+		mini_secret_key: Hex,
+		secret_key: Hex,
+		public_key: Hex,
+		address: String,
+		testnet_address: String,
 	}
 
-	Ok(results)
+	let output = Output{
+		shard_num,
+		shard_count,
+		mini_secret_key: mini_secret_key.to_vec().into(),
+		secret_key: secret_key.to_vec().into(),
+		public_key: public_key.to_vec().into(),
+		address: address.0,
+		testnet_address: testnet_address.0,
+	};
+
+	base::output(&output)
+}
+
+fn random_32_bytes<R: Rng + ?Sized>(rng: &mut R) -> [u8; 32] {
+	let mut ret = [0u8; 32];
+	rng.fill_bytes(&mut ret);
+	ret
 }
 
 mod cases {
-	use crate::modules::Case;
 	use linked_hash_map::LinkedHashMap;
 
+	use crate::modules::Case;
+
 	pub fn cases() -> LinkedHashMap<&'static str, Vec<Case>> {
-		vec![(
-			"ns",
-			vec![
-				Case {
-					desc: "Input decimal".to_string(),
-					input: vec!["256"].into_iter().map(Into::into).collect(),
-					output: vec!["256", "0b100000000", "0o400", "0x100"]
-						.into_iter()
-						.map(Into::into)
-						.collect(),
-					is_example: true,
-					is_test: true,
-					since: "0.1.0".to_string(),
-				},
-				Case {
-					desc: "Input octal".to_string(),
-					input: vec!["0o400"].into_iter().map(Into::into).collect(),
-					output: vec!["256", "0b100000000", "0o400", "0x100"]
-						.into_iter()
-						.map(Into::into)
-						.collect(),
-					is_example: true,
-					is_test: true,
-					since: "0.1.0".to_string(),
-				},
-				Case {
-					desc: "Output decimal".to_string(),
-					input: vec!["-d", "256"].into_iter().map(Into::into).collect(),
-					output: vec!["256"].into_iter().map(Into::into).collect(),
-					is_example: true,
-					is_test: true,
-					since: "0.1.0".to_string(),
-				},
-				Case {
-					desc: "Output binary".to_string(),
-					input: vec!["-b", "256"].into_iter().map(Into::into).collect(),
-					output: vec!["0b100000000"].into_iter().map(Into::into).collect(),
-					is_example: true,
-					is_test: true,
-					since: "0.1.0".to_string(),
-				},
-				Case {
-					desc: "Output octal".to_string(),
-					input: vec!["-o", "256"].into_iter().map(Into::into).collect(),
-					output: vec!["0o400"].into_iter().map(Into::into).collect(),
-					is_example: true,
-					is_test: true,
-					since: "0.1.0".to_string(),
-				},
-				Case {
-					desc: "Output hexadecimal".to_string(),
-					input: vec!["-x", "256"].into_iter().map(Into::into).collect(),
-					output: vec!["0x100"].into_iter().map(Into::into).collect(),
-					is_example: true,
-					is_test: true,
-					since: "0.1.0".to_string(),
-				},
-			],
-		)]
+		vec![]
 			.into_iter()
 			.collect()
 	}
@@ -155,9 +120,9 @@ mod cases {
 
 #[cfg(test)]
 mod tests {
+	use crate::modules::base::test::test_module;
 
 	use super::*;
-	use crate::modules::base::test::test_module;
 
 	#[test]
 	fn test_cases() {

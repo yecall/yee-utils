@@ -1,6 +1,7 @@
 use clap::{App, ArgMatches};
 use linked_hash_map::LinkedHashMap;
 use std::iter;
+
 mod base;
 mod key;
 mod usage;
@@ -62,7 +63,7 @@ impl<'a, 'b> ModuleManager<'a, 'b> {
 
 		match result {
 			Ok(result) => result.iter().for_each(|x| println!("{}", x)),
-			Err(e) => eprintln!("{}", e),
+			Err(e) => eprintln!("{}", base::output_error(e)),
 		}
 	}
 
@@ -73,4 +74,5 @@ impl<'a, 'b> ModuleManager<'a, 'b> {
 				.insert(command.app.get_name().to_string(), command);
 		}
 	}
+
 }
