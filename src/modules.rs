@@ -4,6 +4,7 @@ use std::iter;
 
 mod base;
 mod key;
+mod meter;
 mod usage;
 mod completion;
 
@@ -42,6 +43,7 @@ impl<'a, 'b> ModuleManager<'a, 'b> {
 			commands: LinkedHashMap::new(),
 		};
 		mm.register(key::module());
+		mm.register(meter::module());
 		mm
 	}
 

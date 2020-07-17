@@ -4,7 +4,7 @@ use std::io::{BufRead, Read};
 use std::str::FromStr;
 
 use clap::ArgMatches;
-use serde::{Serialize, Serializer};
+use serde::{Serialize, Serializer, Deserialize, de::DeserializeOwned};
 
 use crate::modules::Command;
 
@@ -125,6 +125,49 @@ pub fn run<'a, 'b, 'a1, 'b1, GSC, GC>(matches: &ArgMatches<'a>, get_sub_commands
 			Ok(vec![])
 		}
 	}
+}
+
+pub async fn rpc_call<P: Serialize, R: DeserializeOwned>(rpc: &str, method: &str, params: &P) -> Result<RpcResponse<R>, String> {
+
+	let request = RpcRequest {
+		jsonrpc: "2.0",
+		method,
+		params,
+		id: 1,
+	};
+
+	let client = reqwest::Client::new();
+	let res = client
+		.post(rpc)
+		.json(&request)
+		.send()
+		.await
+		.map_err(|e|format!("request failed: {:?}", e))?;
+	let response : RpcResponse<R> = res.json().await.map_err(|e|format!("response failed: {:?}", e))?;
+
+	Ok(response)
+}
+
+#[derive(Serialize)]
+pub struct RpcRequest<'a, 'b, P> {
+	pub jsonrpc: &'static str,
+	pub method: &'a str,
+	pub params: &'b P,
+	pub id: i32,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RpcResponse<T> {
+	pub jsonrpc: String,
+	pub result: Option<T>,
+	pub error: Option<RpcError>,
+	pub id: i32,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RpcError {
+	pub code: i32,
+	pub message: String,
 }
 
 #[cfg(test)]
