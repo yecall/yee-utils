@@ -46,13 +46,16 @@ async fn get_meter(rpc: &str) -> Meter{
 
 	let runtime = get_runtime(rpc);
 
-	let (system, runtime) = tokio::join!(
-		system, runtime
+	let crfg = get_crfg(rpc);
+
+	let (system, runtime, crfg) = tokio::join!(
+		system, runtime, crfg
 	);
 
 	let meter = Meter {
 		system: system.ok(),
 		runtime: runtime.ok(),
+		crfg: crfg.ok(),
 	};
 
 	meter
@@ -112,10 +115,27 @@ async fn get_runtime(rpc: &str) -> Result<Value, String>{
 	extract(runtime)
 }
 
+async fn get_crfg(rpc: &str) -> Result<Value, String>{
+
+	let runtime = base::rpc_call::<_, Value>(rpc, "crfg_state", &()).await;
+
+	let extract = |x : Result<base::RpcResponse<Value>, String>| -> Result<Value, String> {
+		match x {
+			Ok(x) => match x.result{
+				Some(x) => Ok(x),
+				None => Err("".to_string()),
+			},
+			Err(e) => Err(e),
+		}
+	};
+
+	extract(runtime)
+}
 #[derive(Serialize)]
 struct Meter {
 	system: Option<System>,
 	runtime: Option<Value>,
+	crfg: Option<Value>,
 }
 
 #[derive(Serialize)]
