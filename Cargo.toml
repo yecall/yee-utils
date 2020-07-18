@@ -25,7 +25,7 @@ futures = "0.3"
 parity-codec = { version = "3.5", features = ["derive"] }
 chrono = "0.4.10"
 num-bigint = "0.2.2"
-yee-signer = { git = "https://github.com/yeeco/yee-signer", rev="5d36ec888b30482c7cc2d7f9d1b2e58f7c4f50bb"}
+yee-signer = { git = "https://github.com/yeeco/yee-signer", tag="v0.1.2"}
 yee-primitives = { git = "https://github.com/yeeco/yeeroot", branch = "master" }
 yee-sharding = { git = "https://github.com/yeeco/yeeroot", branch = "master" }
 yee-runtime = { git = "https://github.com/yeeco/yeeroot", branch = "master" }
