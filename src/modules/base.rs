@@ -4,7 +4,7 @@ use std::io::{BufRead, Read};
 use std::str::FromStr;
 
 use clap::ArgMatches;
-use serde::{Serialize, Serializer};
+use serde::{de::DeserializeOwned, Deserialize, Serialize, Serializer};
 
 use crate::modules::Command;
 
@@ -33,20 +33,21 @@ pub fn input_bytes(matches: &ArgMatches) -> Result<Vec<u8>, String> {
 }
 
 pub fn output<T: Serialize>(t: T) -> Result<Vec<String>, String> {
-	let output = serde_json::to_string_pretty(&Output{
+	let output = serde_json::to_string_pretty(&Output {
 		result: Some(t),
 		error: None,
-	}).map_err(|_|"json encode failed")?;
+	})
+	.map_err(|_| "json encode failed")?;
 	Ok(vec![output])
 }
 
 pub fn output_error(s: String) -> String {
-	let output : Output<()> = Output {
+	let output: Output<()> = Output {
 		result: None,
 		error: Some(Error {
 			code: 1,
 			message: s,
-		})
+		}),
 	};
 	let output = serde_json::to_string_pretty(&output).expect("qed");
 	output
@@ -66,6 +67,7 @@ struct Output<T: Serialize> {
 	error: Option<Error>,
 }
 
+#[derive(Debug)]
 pub struct Hex(Vec<u8>);
 
 impl FromStr for Hex {
@@ -96,21 +98,27 @@ impl Into<Vec<u8>> for Hex {
 
 impl Serialize for Hex {
 	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-		where
-			S: Serializer,
+	where
+		S: Serializer,
 	{
 		serializer.serialize_str(&format!("0x{}", hex::encode(&self.0)))
 	}
 }
 
-pub fn run<'a, 'b, 'a1, 'b1, GSC, GC>(matches: &ArgMatches<'a>, get_sub_commands: GSC, get_commands: GC) -> Result<Vec<String>, String>
-	where GSC: Fn() -> Vec<Command<'a, 'b>>,
-		  GC: Fn() -> Vec<Command<'a1, 'b1>>,
-		  'a: 'b,
-		  'a1: 'b1,
+pub fn run<'a, 'b, 'a1, 'b1, GSC, GC>(
+	matches: &ArgMatches<'a>,
+	get_sub_commands: GSC,
+	get_commands: GC,
+) -> Result<Vec<String>, String>
+where
+	GSC: Fn() -> Vec<Command<'a, 'b>>,
+	GC: Fn() -> Vec<Command<'a1, 'b1>>,
+	'a: 'b,
+	'a1: 'b1,
 {
 	let sub_commands = get_sub_commands();
-	let map = sub_commands.iter()
+	let map = sub_commands
+		.iter()
 		.map(|sub_command| (sub_command.app.get_name(), sub_command.f))
 		.collect::<HashMap<_, _>>();
 
@@ -125,6 +133,55 @@ pub fn run<'a, 'b, 'a1, 'b1, GSC, GC>(matches: &ArgMatches<'a>, get_sub_commands
 			Ok(vec![])
 		}
 	}
+}
+
+pub async fn rpc_call<P: Serialize, R: DeserializeOwned>(
+	rpc: &str,
+	method: &str,
+	params: &P,
+) -> Result<RpcResponse<R>, String> {
+	let request = RpcRequest {
+		jsonrpc: "2.0",
+		method,
+		params,
+		id: 1,
+	};
+
+	let client = reqwest::Client::new();
+	let res = client
+		.post(rpc)
+		.json(&request)
+		.send()
+		.await
+		.map_err(|e| format!("request failed: {:?}", e))?;
+	let response: RpcResponse<R> = res
+		.json()
+		.await
+		.map_err(|e| format!("response failed: {:?}", e))?;
+
+	Ok(response)
+}
+
+#[derive(Serialize)]
+pub struct RpcRequest<'a, 'b, P> {
+	pub jsonrpc: &'static str,
+	pub method: &'a str,
+	pub params: &'b P,
+	pub id: i32,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RpcResponse<T> {
+	pub jsonrpc: String,
+	pub result: Option<T>,
+	pub error: Option<RpcError>,
+	pub id: i32,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RpcError {
+	pub code: i32,
+	pub message: String,
 }
 
 #[cfg(test)]

@@ -3,9 +3,10 @@ use linked_hash_map::LinkedHashMap;
 use std::iter;
 
 mod base;
-mod key;
-mod usage;
 mod completion;
+mod key;
+mod meter;
+mod usage;
 
 #[derive(Clone)]
 pub struct Module<'a, 'b> {
@@ -42,6 +43,7 @@ impl<'a, 'b> ModuleManager<'a, 'b> {
 			commands: LinkedHashMap::new(),
 		};
 		mm.register(key::module());
+		mm.register(meter::module());
 		mm
 	}
 
@@ -74,5 +76,4 @@ impl<'a, 'b> ModuleManager<'a, 'b> {
 				.insert(command.app.get_name().to_string(), command);
 		}
 	}
-
 }

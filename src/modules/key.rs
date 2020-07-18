@@ -1,13 +1,13 @@
 use clap::{Arg, ArgMatches, SubCommand};
-use rand::Rng;
 use rand::thread_rng;
+use rand::Rng;
 use serde::Serialize;
-use yee_primitives::{AddressCodec, Hrp, Address};
+use yee_primitives::{Address, AddressCodec, Hrp};
 use yee_sharding_primitives::utils;
 use yee_signer::KeyPair;
 
-use crate::modules::{base, Command, Module};
 use crate::modules::base::Hex;
+use crate::modules::{base, Command, Module};
 
 const SHARD_COUNT_LIST: [u16; 2] = [4, 8];
 
@@ -20,17 +20,13 @@ pub fn module<'a, 'b>() -> Module<'a, 'b> {
 }
 
 pub fn commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
-	let mut app = SubCommand::with_name("key")
-		.about("Key tool");
+	let mut app = SubCommand::with_name("key").about("Key tool");
 	for sub_command in sub_commands() {
 		app = app.subcommand(sub_command.app);
 	}
 	let f = run;
 
-	vec![Command {
-		app,
-		f,
-	}]
+	vec![Command { app, f }]
 }
 
 fn run(matches: &ArgMatches) -> Result<Vec<String>, String> {
@@ -45,15 +41,19 @@ fn sub_commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
 				.arg(
 					Arg::with_name("SHARD_NUM")
 						.long("shard-num")
-						.short("s").help("Shard number")
+						.short("s")
+						.help("Shard number")
 						.takes_value(true)
-						.required(true))
+						.required(true),
+				)
 				.arg(
 					Arg::with_name("SHARD_COUNT")
 						.long("shard-count")
-						.short("c").help("Shard count")
+						.short("c")
+						.help("Shard count")
 						.takes_value(true)
-						.required(true)),
+						.required(true),
+				),
 			f: generate,
 		},
 		Command {
@@ -79,13 +79,21 @@ fn sub_commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
 				.about("Desc address")
 				.arg(Arg::with_name("INPUT").required(false).index(1)),
 			f: address,
-		}
+		},
 	]
 }
 
 fn generate(matches: &ArgMatches) -> Result<Vec<String>, String> {
-	let shard_num = matches.value_of("SHARD_NUM").expect("qed").parse::<u16>().map_err(|_| "invalid shard num")?;
-	let shard_count = matches.value_of("SHARD_COUNT").expect("qed").parse::<u16>().map_err(|_| "invalid shard count")?;
+	let shard_num = matches
+		.value_of("SHARD_NUM")
+		.expect("qed")
+		.parse::<u16>()
+		.map_err(|_| "invalid shard num")?;
+	let shard_count = matches
+		.value_of("SHARD_COUNT")
+		.expect("qed")
+		.parse::<u16>()
+		.map_err(|_| "invalid shard count")?;
 
 	let (mini_secret_key, public_key, secret_key, address, testnet_address) = loop {
 		let mini_secret_key = random_32_bytes(&mut thread_rng());
@@ -94,10 +102,20 @@ fn generate(matches: &ArgMatches) -> Result<Vec<String>, String> {
 		let secret_key = key_pair.secret_key();
 		let address_shard_num = utils::shard_num_for_bytes(&public_key, shard_count);
 		if address_shard_num == Some(shard_num) {
-			let address = public_key.to_address(Hrp::MAINNET).map_err(|_e| "address encode failed")?;
-			let testnet_address = public_key.to_address(Hrp::TESTNET).map_err(|_e| "address encode failed")?;
+			let address = public_key
+				.to_address(Hrp::MAINNET)
+				.map_err(|_e| "address encode failed")?;
+			let testnet_address = public_key
+				.to_address(Hrp::TESTNET)
+				.map_err(|_e| "address encode failed")?;
 
-			break (mini_secret_key, public_key, secret_key, address, testnet_address);
+			break (
+				mini_secret_key,
+				public_key,
+				secret_key,
+				address,
+				testnet_address,
+			);
 		}
 	};
 
@@ -136,8 +154,12 @@ fn mini_secret_key(matches: &ArgMatches) -> Result<Vec<String>, String> {
 
 	let public_key = key_pair.public_key();
 
-	let address = public_key.to_address(Hrp::MAINNET).map_err(|_e| "address encode failed")?;
-	let testnet_address = public_key.to_address(Hrp::TESTNET).map_err(|_e| "address encode failed")?;
+	let address = public_key
+		.to_address(Hrp::MAINNET)
+		.map_err(|_e| "address encode failed")?;
+	let testnet_address = public_key
+		.to_address(Hrp::TESTNET)
+		.map_err(|_e| "address encode failed")?;
 
 	#[derive(Serialize)]
 	struct Shard {
@@ -145,13 +167,16 @@ fn mini_secret_key(matches: &ArgMatches) -> Result<Vec<String>, String> {
 		shard_count: u16,
 	}
 
-	let shard = SHARD_COUNT_LIST.iter().map(|&shard_count| {
-		let shard_num = utils::shard_num_for_bytes(&public_key, shard_count).expect("qed");
-		Shard {
-			shard_num,
-			shard_count,
-		}
-	}).collect::<Vec<_>>();
+	let shard = SHARD_COUNT_LIST
+		.iter()
+		.map(|&shard_count| {
+			let shard_num = utils::shard_num_for_bytes(&public_key, shard_count).expect("qed");
+			Shard {
+				shard_num,
+				shard_count,
+			}
+		})
+		.collect::<Vec<_>>();
 
 	#[derive(Serialize)]
 	struct Output {
@@ -184,8 +209,12 @@ fn secret_key(matches: &ArgMatches) -> Result<Vec<String>, String> {
 
 	let public_key = key_pair.public_key();
 
-	let address = public_key.to_address(Hrp::MAINNET).map_err(|_e| "address encode failed")?;
-	let testnet_address = public_key.to_address(Hrp::TESTNET).map_err(|_e| "address encode failed")?;
+	let address = public_key
+		.to_address(Hrp::MAINNET)
+		.map_err(|_e| "address encode failed")?;
+	let testnet_address = public_key
+		.to_address(Hrp::TESTNET)
+		.map_err(|_e| "address encode failed")?;
 
 	#[derive(Serialize)]
 	struct Shard {
@@ -193,13 +222,16 @@ fn secret_key(matches: &ArgMatches) -> Result<Vec<String>, String> {
 		shard_count: u16,
 	}
 
-	let shard = SHARD_COUNT_LIST.iter().map(|&shard_count| {
-		let shard_num = utils::shard_num_for_bytes(&public_key, shard_count).expect("qed");
-		Shard {
-			shard_num,
-			shard_count,
-		}
-	}).collect::<Vec<_>>();
+	let shard = SHARD_COUNT_LIST
+		.iter()
+		.map(|&shard_count| {
+			let shard_num = utils::shard_num_for_bytes(&public_key, shard_count).expect("qed");
+			Shard {
+				shard_num,
+				shard_count,
+			}
+		})
+		.collect::<Vec<_>>();
 
 	#[derive(Serialize)]
 	struct Output {
@@ -228,8 +260,12 @@ fn public_key(matches: &ArgMatches) -> Result<Vec<String>, String> {
 
 	let public_key = input;
 
-	let address = public_key.to_address(Hrp::MAINNET).map_err(|_e| "address encode failed")?;
-	let testnet_address = public_key.to_address(Hrp::TESTNET).map_err(|_e| "address encode failed")?;
+	let address = public_key
+		.to_address(Hrp::MAINNET)
+		.map_err(|_e| "address encode failed")?;
+	let testnet_address = public_key
+		.to_address(Hrp::TESTNET)
+		.map_err(|_e| "address encode failed")?;
 
 	#[derive(Serialize)]
 	struct Shard {
@@ -237,13 +273,16 @@ fn public_key(matches: &ArgMatches) -> Result<Vec<String>, String> {
 		shard_count: u16,
 	}
 
-	let shard = SHARD_COUNT_LIST.iter().map(|&shard_count| {
-		let shard_num = utils::shard_num_for_bytes(&public_key, shard_count).expect("qed");
-		Shard {
-			shard_num,
-			shard_count,
-		}
-	}).collect::<Vec<_>>();
+	let shard = SHARD_COUNT_LIST
+		.iter()
+		.map(|&shard_count| {
+			let shard_num = utils::shard_num_for_bytes(&public_key, shard_count).expect("qed");
+			Shard {
+				shard_num,
+				shard_count,
+			}
+		})
+		.collect::<Vec<_>>();
 
 	#[derive(Serialize)]
 	struct Output {
@@ -268,7 +307,8 @@ fn address(matches: &ArgMatches) -> Result<Vec<String>, String> {
 
 	let address = Address(input);
 
-	let (public_key, hrp) = <[u8; 32]>::from_address(&address).map_err(|_|"address decode failed")?;
+	let (public_key, hrp) =
+		<[u8; 32]>::from_address(&address).map_err(|_| "address decode failed")?;
 
 	#[derive(Serialize)]
 	struct Shard {
@@ -276,13 +316,16 @@ fn address(matches: &ArgMatches) -> Result<Vec<String>, String> {
 		shard_count: u16,
 	}
 
-	let shard = SHARD_COUNT_LIST.iter().map(|&shard_count| {
-		let shard_num = utils::shard_num_for_bytes(&public_key, shard_count).expect("qed");
-		Shard {
-			shard_num,
-			shard_count,
-		}
-	}).collect::<Vec<_>>();
+	let shard = SHARD_COUNT_LIST
+		.iter()
+		.map(|&shard_count| {
+			let shard_num = utils::shard_num_for_bytes(&public_key, shard_count).expect("qed");
+			Shard {
+				shard_num,
+				shard_count,
+			}
+		})
+		.collect::<Vec<_>>();
 
 	#[derive(Serialize)]
 	struct Output {
@@ -314,9 +357,7 @@ mod cases {
 	use crate::modules::Case;
 
 	pub fn cases() -> LinkedHashMap<&'static str, Vec<Case>> {
-		vec![]
-			.into_iter()
-			.collect()
+		vec![].into_iter().collect()
 	}
 }
 
