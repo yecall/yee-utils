@@ -5922,6 +5922,7 @@ dependencies = [
  "linked-hash-map",
  "madato",
  "num-bigint",
+ "num-traits",
  "parity-codec",
  "prettytable-rs",
  "rand 0.6.5",

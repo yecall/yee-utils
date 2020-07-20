@@ -1,13 +1,13 @@
 use clap::{Arg, ArgMatches, SubCommand};
-use rand::thread_rng;
 use rand::Rng;
+use rand::thread_rng;
 use serde::Serialize;
 use yee_primitives::{Address, AddressCodec, Hrp};
 use yee_sharding_primitives::utils;
 use yee_signer::KeyPair;
 
-use crate::modules::base::Hex;
 use crate::modules::{base, Command, Module};
+use crate::modules::base::Hex;
 
 const SHARD_COUNT_LIST: [u16; 2] = [4, 8];
 
@@ -95,7 +95,7 @@ fn sub_commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
 		},
 		Command {
 			app: SubCommand::with_name("get_key")
-				.about("Get secret key to a keystore file")
+				.about("Get secret key from a keystore file")
 				.arg(
 					Arg::with_name("KEYSTORE_PATH")
 						.long("keystore-path")
@@ -428,7 +428,144 @@ mod cases {
 	use crate::modules::Case;
 
 	pub fn cases() -> LinkedHashMap<&'static str, Vec<Case>> {
-		vec![].into_iter().collect()
+		vec![
+			(
+				"key",
+				vec![Case {
+					desc: "Generate key pair".to_string(),
+					input: vec!["generate", "-s", "0", "-c", "4"].into_iter().map(Into::into).collect(),
+					output: vec![r#"{
+  "result": {
+    "shard_num": 0,
+    "shard_count": 4,
+    "mini_secret_key": "0xbd08b0bf13e4489e167e34b38189813098f6ce58ca35cb562d2bdec19ddbe08d",
+    "secret_key": "0xb8fc0fffbec280d6115076ae78bb74342df51628d762bd953e8109d798ca3e6512124477a98392a283831ff9d6f0d454e97dfb9ef6cbf8dbe159e9deb08bfb0a",
+    "public_key": "0x76d29674e24b92cdd5b4f2fd9586bf2637fa99184292a617c0b573383bc33c04",
+    "address": "yee1wmffva8zfwfvm4d57t7etp4lycml4xgcg2f2v97qk4ensw7r8szqd0acf7",
+    "testnet_address": "tyee1wmffva8zfwfvm4d57t7etp4lycml4xgcg2f2v97qk4ensw7r8szqqg6wgd"
+  }
+}
+"#].into_iter().map(Into::into).collect(),
+					is_example: true,
+					is_test: false,
+					since: "0.1.0".to_string(),
+				}, Case {
+					desc: "Desc mini secret key".to_string(),
+					input: vec!["mini_secret_key", "0xbd08b0bf13e4489e167e34b38189813098f6ce58ca35cb562d2bdec19ddbe08d"].into_iter().map(Into::into).collect(),
+					output: vec![r#"{
+  "result": {
+    "mini_secret_key": "0xbd08b0bf13e4489e167e34b38189813098f6ce58ca35cb562d2bdec19ddbe08d",
+    "secret_key": "0xb8fc0fffbec280d6115076ae78bb74342df51628d762bd953e8109d798ca3e6512124477a98392a283831ff9d6f0d454e97dfb9ef6cbf8dbe159e9deb08bfb0a",
+    "public_key": "0x76d29674e24b92cdd5b4f2fd9586bf2637fa99184292a617c0b573383bc33c04",
+    "address": "yee1wmffva8zfwfvm4d57t7etp4lycml4xgcg2f2v97qk4ensw7r8szqd0acf7",
+    "testnet_address": "tyee1wmffva8zfwfvm4d57t7etp4lycml4xgcg2f2v97qk4ensw7r8szqqg6wgd",
+    "shard": [
+      {
+        "shard_num": 0,
+        "shard_count": 4
+      },
+      {
+        "shard_num": 4,
+        "shard_count": 8
+      }
+    ]
+  }
+}"#].into_iter().map(Into::into).collect(),
+					is_example: true,
+					is_test: true,
+					since: "0.1.0".to_string(),
+				}, Case {
+					desc: "Desc secret key".to_string(),
+					input: vec!["secret_key", "0xb8fc0fffbec280d6115076ae78bb74342df51628d762bd953e8109d798ca3e6512124477a98392a283831ff9d6f0d454e97dfb9ef6cbf8dbe159e9deb08bfb0a"].into_iter().map(Into::into).collect(),
+					output: vec![r#"{
+  "result": {
+    "secret_key": "0xb8fc0fffbec280d6115076ae78bb74342df51628d762bd953e8109d798ca3e6512124477a98392a283831ff9d6f0d454e97dfb9ef6cbf8dbe159e9deb08bfb0a",
+    "public_key": "0x76d29674e24b92cdd5b4f2fd9586bf2637fa99184292a617c0b573383bc33c04",
+    "address": "yee1wmffva8zfwfvm4d57t7etp4lycml4xgcg2f2v97qk4ensw7r8szqd0acf7",
+    "testnet_address": "tyee1wmffva8zfwfvm4d57t7etp4lycml4xgcg2f2v97qk4ensw7r8szqqg6wgd",
+    "shard": [
+      {
+        "shard_num": 0,
+        "shard_count": 4
+      },
+      {
+        "shard_num": 4,
+        "shard_count": 8
+      }
+    ]
+  }
+}"#].into_iter().map(Into::into).collect(),
+					is_example: true,
+					is_test: true,
+					since: "0.1.0".to_string(),
+				}, Case {
+					desc: "Desc public key".to_string(),
+					input: vec!["public_key", "0x76d29674e24b92cdd5b4f2fd9586bf2637fa99184292a617c0b573383bc33c04"].into_iter().map(Into::into).collect(),
+					output: vec![r#"{
+  "result": {
+    "public_key": "0x76d29674e24b92cdd5b4f2fd9586bf2637fa99184292a617c0b573383bc33c04",
+    "address": "yee1wmffva8zfwfvm4d57t7etp4lycml4xgcg2f2v97qk4ensw7r8szqd0acf7",
+    "testnet_address": "tyee1wmffva8zfwfvm4d57t7etp4lycml4xgcg2f2v97qk4ensw7r8szqqg6wgd",
+    "shard": [
+      {
+        "shard_num": 0,
+        "shard_count": 4
+      },
+      {
+        "shard_num": 4,
+        "shard_count": 8
+      }
+    ]
+  }
+}"#].into_iter().map(Into::into).collect(),
+					is_example: true,
+					is_test: true,
+					since: "0.1.0".to_string(),
+				}, Case {
+					desc: "Desc address".to_string(),
+					input: vec!["address", "yee1wmffva8zfwfvm4d57t7etp4lycml4xgcg2f2v97qk4ensw7r8szqd0acf7"].into_iter().map(Into::into).collect(),
+					output: vec![r#"{
+  "result": {
+    "address": "yee1wmffva8zfwfvm4d57t7etp4lycml4xgcg2f2v97qk4ensw7r8szqd0acf7",
+    "public_key": "0x76d29674e24b92cdd5b4f2fd9586bf2637fa99184292a617c0b573383bc33c04",
+    "hrp": "yee",
+    "shard": [
+      {
+        "shard_num": 0,
+        "shard_count": 4
+      },
+      {
+        "shard_num": 4,
+        "shard_count": 8
+      }
+    ]
+  }
+}"#].into_iter().map(Into::into).collect(),
+					is_example: true,
+					is_test: true,
+					since: "0.1.0".to_string(),
+				}, Case {
+					desc: "Put secret key to a keystore file".to_string(),
+					input: vec!["put_key", "-k", "./keystore.dat"].into_iter().map(Into::into).collect(),
+					output: vec![r#"{
+  "result": "Ok"
+}
+"#].into_iter().map(Into::into).collect(),
+					is_example: true,
+					is_test: false,
+					since: "0.1.0".to_string(),
+				}, Case {
+					desc: "Get secret key from a keystore file".to_string(),
+					input: vec!["get_key", "-k", "./keystore.dat"].into_iter().map(Into::into).collect(),
+					output: vec![r#"{
+  "result": "0xa8666e483fd6c26dbb6deeec5afae765561ecc94df432f02920fc5d9cd4ae206ead577e5bc11215d4735cee89218e22f2d950a2a4667745ea1b5ea8b26bba5d6"
+}"#].into_iter().map(Into::into).collect(),
+					is_example: true,
+					is_test: false,
+					since: "0.1.0".to_string(),
+				}],
+			),
+		].into_iter().collect()
 	}
 }
 
