@@ -202,7 +202,7 @@ async fn get_block_info(
 				.ok_or("none error".to_string())?;
 			let number = {
 				let tmp = number_hex.trim_start_matches("0x");
-				let tmp = u64::from_str_radix(tmp, 16).map_err(|_| "decode failed")?;
+				let tmp = u64::from_str_radix(tmp, 16).map_err(|_| "Decode failed")?;
 				tmp
 			};
 			let hash = base::rpc_call::<_, String>(rpc, "chain_getBlockHash", &[number])

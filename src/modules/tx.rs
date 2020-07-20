@@ -1,11 +1,11 @@
 use clap::{Arg, ArgMatches, SubCommand};
 use parity_codec::Decode;
 use serde::Serialize;
-use yee_signer::tx::types::{Transaction, Era};
-
-use crate::modules::{base, Command, Module};
-use crate::modules::base::Hex;
 use yee_signer::tx::call::Call;
+use yee_signer::tx::types::{Era, Transaction};
+
+use crate::modules::base::Hex;
+use crate::modules::{base, Command, Module};
 
 pub fn module<'a, 'b>() -> Module<'a, 'b> {
 	Module {
@@ -30,14 +30,15 @@ fn run(matches: &ArgMatches) -> Result<Vec<String>, String> {
 }
 
 fn sub_commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
-	vec![
-		Command {
-			app: SubCommand::with_name("desc")
-				.about("Desc tx")
-				.arg(Arg::with_name("INPUT").help("raw tx").required(false).index(1)),
-			f: desc,
-		},
-	]
+	vec![Command {
+		app: SubCommand::with_name("desc").about("Desc tx").arg(
+			Arg::with_name("INPUT")
+				.help("raw tx")
+				.required(false)
+				.index(1),
+		),
+		f: desc,
+	}]
 }
 
 fn desc(matches: &ArgMatches) -> Result<Vec<String>, String> {
@@ -48,7 +49,7 @@ fn desc(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	let tx: Transaction = Decode::decode(&mut &input[..]).ok_or("invalid tx")?;
 
 	#[derive(Serialize)]
-	struct SerdeTransaction{
+	struct SerdeTransaction {
 		pub signature: Option<(Hex, Hex, u64, SerdeEra)>,
 		pub call: Call,
 	}
@@ -61,7 +62,7 @@ fn desc(matches: &ArgMatches) -> Result<Vec<String>, String> {
 
 	impl From<Era> for SerdeEra {
 		fn from(t: Era) -> Self {
-			match t{
+			match t {
 				Era::Immortal => Self::Immortal,
 				Era::Mortal(period, phase) => Self::Mortal(period, phase),
 			}
@@ -70,8 +71,14 @@ fn desc(matches: &ArgMatches) -> Result<Vec<String>, String> {
 
 	impl From<Transaction> for SerdeTransaction {
 		fn from(t: Transaction) -> Self {
-			let signature = t.signature.map(|(address, sig, nonce, era)|
-				(address.0.to_vec().into(), sig.to_vec().into(), nonce.0, era.into()));
+			let signature = t.signature.map(|(address, sig, nonce, era)| {
+				(
+					address.0.to_vec().into(),
+					sig.to_vec().into(),
+					nonce.0,
+					era.into(),
+				)
+			});
 			Self {
 				signature,
 				call: t.call,

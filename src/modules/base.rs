@@ -1,9 +1,15 @@
+use core::num::NonZeroU32;
 use std::collections::HashMap;
 use std::io;
-use std::io::{BufRead, Read};
+use std::io::{BufRead, Read, Write};
 use std::str::FromStr;
 
 use clap::ArgMatches;
+use crypto::aes::{ctr, KeySize};
+use crypto::buffer::{RefReadBuffer, RefWriteBuffer};
+use crypto::symmetriccipher::{Decryptor, Encryptor};
+use ring::digest::SHA256;
+use ring::pbkdf2::derive;
 use serde::{de::DeserializeOwned, Deserialize, Serialize, Serializer};
 
 use crate::modules::Command;
@@ -37,7 +43,7 @@ pub fn output<T: Serialize>(t: T) -> Result<Vec<String>, String> {
 		result: Some(t),
 		error: None,
 	})
-	.map_err(|_| "json encode failed")?;
+	.map_err(|_| "Json encode failed")?;
 	Ok(vec![output])
 }
 
@@ -153,11 +159,11 @@ pub async fn rpc_call<P: Serialize, R: DeserializeOwned>(
 		.json(&request)
 		.send()
 		.await
-		.map_err(|e| format!("request failed: {:?}", e))?;
+		.map_err(|e| format!("Request failed: {:?}", e))?;
 	let response: RpcResponse<R> = res
 		.json()
 		.await
-		.map_err(|e| format!("response failed: {:?}", e))?;
+		.map_err(|e| format!("Response failed: {:?}", e))?;
 
 	Ok(response)
 }
@@ -182,6 +188,108 @@ pub struct RpcResponse<T> {
 pub struct RpcError {
 	pub code: i32,
 	pub message: String,
+}
+
+const SALT: &'static [u8] = b"yee-utils-key";
+const ITERATIONS: u32 = 1024;
+const KEY_SIZE: KeySize = KeySize::KeySize256;
+const KEYSTORE_VERSION: &'static str = "1.0";
+
+#[derive(Serialize, Deserialize)]
+struct KeyStore {
+	pub version: String,
+	pub secret_key: String,
+}
+
+pub fn put_key(secret_key: &[u8], password: &str, keystore_path: &str) -> Result<(), String> {
+	let cipher = aes_enc(&secret_key, &password)?;
+
+	let cipher = format!("0x{}", hex::encode(cipher));
+
+	let keystore = KeyStore {
+		version: KEYSTORE_VERSION.to_string(),
+		secret_key: cipher,
+	};
+
+	let content = serde_json::to_string(&keystore).map_err(|_| "Keystore encode failed")?;
+
+	put_to_file(content.as_bytes(), keystore_path)?;
+
+	Ok(())
+}
+
+pub fn get_key(password: &str, keystore_path: &str) -> Result<Vec<u8>, String> {
+	let content = get_from_file(keystore_path)?;
+
+	let keystore: KeyStore =
+		serde_json::from_slice(&content).map_err(|_| "Keystore decode failed")?;
+
+	if keystore.version != KEYSTORE_VERSION {
+		return Err("Invalid keystore version".to_string());
+	}
+
+	let cipher = keystore.secret_key;
+	let cipher = cipher.trim_start_matches("0x");
+
+	let cipher: Vec<u8> = hex::decode(cipher).map_err(|_| "Keystore decode failed")?;
+
+	let secret_key = aes_dec(&cipher, password)?;
+
+	Ok(secret_key)
+}
+
+pub fn put_to_file(content: &[u8], file_path: &str) -> Result<(), String> {
+	let mut file = std::fs::File::create(file_path).map_err(|_| "File creation failed")?;
+	file.write_all(content).map_err(|_| "Write failed")?;
+	Ok(())
+}
+
+pub fn get_from_file(file_path: &str) -> Result<Vec<u8>, String> {
+	let mut file = std::fs::File::open(file_path).map_err(|_| "Open file failed")?;
+	let mut content = vec![];
+	file.read_to_end(&mut content)
+		.map_err(|_| "Read file failed")?;
+	Ok(content)
+}
+
+pub fn aes_enc(plain: &[u8], password: &str) -> Result<Vec<u8>, String> {
+	let (key, iv) = password_to_key(&password);
+
+	let mut a = ctr(KEY_SIZE, &key, &iv);
+	let mut result = vec![0u8; plain.len()];
+	a.encrypt(
+		&mut RefReadBuffer::new(&plain),
+		&mut RefWriteBuffer::new(&mut result),
+		true,
+	)
+	.map_err(|_| "Enc failed")?;
+
+	Ok(result)
+}
+
+pub fn aes_dec(cipher: &[u8], password: &str) -> Result<Vec<u8>, String> {
+	let (key, iv) = password_to_key(&password);
+	let mut a = ctr(KEY_SIZE, &key, &iv);
+	let mut result = vec![0u8; cipher.len()];
+	let mut buffer = RefWriteBuffer::new(&mut result);
+	a.decrypt(&mut RefReadBuffer::new(&cipher), &mut buffer, true)
+		.map_err(|_| "Dec failed")?;
+
+	Ok(result)
+}
+
+fn password_to_key(password: &str) -> ([u8; 32], [u8; 32]) {
+	let secret = password.as_bytes();
+	let iterations = NonZeroU32::new(ITERATIONS).expect("qed");
+	let mut result = [0u8; 64];
+	derive(&SHA256, iterations, SALT, &secret, &mut result);
+
+	let mut key = [0u8; 32];
+	let mut iv = [0u8; 32];
+	key.copy_from_slice(&result[0..32]);
+	iv.copy_from_slice(&result[32..]);
+
+	(key, iv)
 }
 
 #[cfg(test)]

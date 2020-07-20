@@ -80,6 +80,32 @@ fn sub_commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
 				.arg(Arg::with_name("INPUT").required(false).index(1)),
 			f: address,
 		},
+		Command {
+			app: SubCommand::with_name("put_key")
+				.about("Put secret key to a keystore file")
+				.arg(
+					Arg::with_name("KEYSTORE_PATH")
+						.long("keystore-path")
+						.short("k")
+						.help("Keystore path")
+						.takes_value(true)
+						.required(true),
+				),
+			f: put_key,
+		},
+		Command {
+			app: SubCommand::with_name("get_key")
+				.about("Get secret key to a keystore file")
+				.arg(
+					Arg::with_name("KEYSTORE_PATH")
+						.long("keystore-path")
+						.short("k")
+						.help("Keystore path")
+						.takes_value(true)
+						.required(true),
+				),
+			f: get_key,
+		},
 	]
 }
 
@@ -88,12 +114,12 @@ fn generate(matches: &ArgMatches) -> Result<Vec<String>, String> {
 		.value_of("SHARD_NUM")
 		.expect("qed")
 		.parse::<u16>()
-		.map_err(|_| "invalid shard num")?;
+		.map_err(|_| "Invalid shard num")?;
 	let shard_count = matches
 		.value_of("SHARD_COUNT")
 		.expect("qed")
 		.parse::<u16>()
-		.map_err(|_| "invalid shard count")?;
+		.map_err(|_| "Invalid shard count")?;
 
 	let (mini_secret_key, public_key, secret_key, address, testnet_address) = loop {
 		let mini_secret_key = random_32_bytes(&mut thread_rng());
@@ -104,10 +130,10 @@ fn generate(matches: &ArgMatches) -> Result<Vec<String>, String> {
 		if address_shard_num == Some(shard_num) {
 			let address = public_key
 				.to_address(Hrp::MAINNET)
-				.map_err(|_e| "address encode failed")?;
+				.map_err(|_e| "Address encode failed")?;
 			let testnet_address = public_key
 				.to_address(Hrp::TESTNET)
-				.map_err(|_e| "address encode failed")?;
+				.map_err(|_e| "Address encode failed")?;
 
 			break (
 				mini_secret_key,
@@ -146,7 +172,10 @@ fn generate(matches: &ArgMatches) -> Result<Vec<String>, String> {
 fn mini_secret_key(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	let input = base::input_string(matches)?;
 
-	let input: Vec<u8> = input.parse::<Hex>().map_err(|_| "Convert failed")?.into();
+	let input: Vec<u8> = input
+		.parse::<Hex>()
+		.map_err(|_| "Invalid mini secret key")?
+		.into();
 
 	let key_pair = KeyPair::from_mini_secret_key(&input.clone())?;
 
@@ -156,10 +185,10 @@ fn mini_secret_key(matches: &ArgMatches) -> Result<Vec<String>, String> {
 
 	let address = public_key
 		.to_address(Hrp::MAINNET)
-		.map_err(|_e| "address encode failed")?;
+		.map_err(|_e| "Address encode failed")?;
 	let testnet_address = public_key
 		.to_address(Hrp::TESTNET)
-		.map_err(|_e| "address encode failed")?;
+		.map_err(|_e| "Address encode failed")?;
 
 	#[derive(Serialize)]
 	struct Shard {
@@ -203,7 +232,10 @@ fn mini_secret_key(matches: &ArgMatches) -> Result<Vec<String>, String> {
 fn secret_key(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	let input = base::input_string(matches)?;
 
-	let input: Vec<u8> = input.parse::<Hex>().map_err(|_| "Convert failed")?.into();
+	let input: Vec<u8> = input
+		.parse::<Hex>()
+		.map_err(|_| "Invalid secret key")?
+		.into();
 
 	let key_pair = KeyPair::from_secret_key(&input.clone())?;
 
@@ -211,10 +243,10 @@ fn secret_key(matches: &ArgMatches) -> Result<Vec<String>, String> {
 
 	let address = public_key
 		.to_address(Hrp::MAINNET)
-		.map_err(|_e| "address encode failed")?;
+		.map_err(|_e| "Address encode failed")?;
 	let testnet_address = public_key
 		.to_address(Hrp::TESTNET)
-		.map_err(|_e| "address encode failed")?;
+		.map_err(|_e| "Address encode failed")?;
 
 	#[derive(Serialize)]
 	struct Shard {
@@ -256,16 +288,19 @@ fn secret_key(matches: &ArgMatches) -> Result<Vec<String>, String> {
 fn public_key(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	let input = base::input_string(matches)?;
 
-	let input: Vec<u8> = input.parse::<Hex>().map_err(|_| "Convert failed")?.into();
+	let input: Vec<u8> = input
+		.parse::<Hex>()
+		.map_err(|_| "Invalid public key")?
+		.into();
 
 	let public_key = input;
 
 	let address = public_key
 		.to_address(Hrp::MAINNET)
-		.map_err(|_e| "address encode failed")?;
+		.map_err(|_e| "Address encode failed")?;
 	let testnet_address = public_key
 		.to_address(Hrp::TESTNET)
-		.map_err(|_e| "address encode failed")?;
+		.map_err(|_e| "Address encode failed")?;
 
 	#[derive(Serialize)]
 	struct Shard {
@@ -308,7 +343,7 @@ fn address(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	let address = Address(input);
 
 	let (public_key, hrp) =
-		<[u8; 32]>::from_address(&address).map_err(|_| "address decode failed")?;
+		<[u8; 32]>::from_address(&address).map_err(|_| "Address decode failed")?;
 
 	#[derive(Serialize)]
 	struct Shard {
@@ -343,6 +378,42 @@ fn address(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	};
 
 	base::output(&output)
+}
+
+fn put_key(matches: &ArgMatches) -> Result<Vec<String>, String> {
+	let keystore_path = matches.value_of("KEYSTORE_PATH").expect("qed");
+
+	match std::fs::File::open(keystore_path) {
+		Ok(_) => return Err("Keystore file exists".to_string()),
+		_ => (),
+	}
+
+	let secret_key = rpassword::read_password_from_tty(Some("Secret key (Hex): ")).unwrap();
+
+	let secret_key: Vec<u8> = secret_key
+		.parse::<Hex>()
+		.map_err(|_| "Invalid secret key")?
+		.into();
+
+	let _key_pair = KeyPair::from_secret_key(&secret_key).map_err(|_| "Invalid secret key")?;
+
+	let password = rpassword::read_password_from_tty(Some("Password: ")).unwrap();
+
+	base::put_key(&secret_key, &password, keystore_path)?;
+
+	base::output("Ok")
+}
+
+fn get_key(matches: &ArgMatches) -> Result<Vec<String>, String> {
+	let keystore_path = matches.value_of("KEYSTORE_PATH").expect("qed");
+
+	let password = rpassword::read_password_from_tty(Some("Password: ")).unwrap();
+
+	let secret_key = base::get_key(&password, keystore_path)?;
+
+	let secret_key: Hex = secret_key.into();
+
+	base::output(secret_key)
 }
 
 fn random_32_bytes<R: Rng + ?Sized>(rng: &mut R) -> [u8; 32] {
