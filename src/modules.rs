@@ -6,6 +6,7 @@ mod base;
 mod completion;
 mod key;
 mod meter;
+mod tx;
 mod usage;
 
 #[derive(Clone)]
@@ -44,6 +45,7 @@ impl<'a, 'b> ModuleManager<'a, 'b> {
 		};
 		mm.register(key::module());
 		mm.register(meter::module());
+		mm.register(tx::module());
 		mm
 	}
 

@@ -1,7 +1,7 @@
 use std::collections::{hash_map::Entry, HashMap};
 
-use chrono::offset::TimeZone;
 use chrono::Local;
+use chrono::offset::TimeZone;
 use clap::{Arg, ArgMatches, SubCommand};
 use finality_tracker::FinalityTrackerDigestItem;
 use futures::future::join_all;
@@ -15,8 +15,8 @@ use yee_consensus_pow::{CompatibleDigestItem, PowSeal};
 use yee_runtime::opaque::Block;
 use yee_sharding::ShardingDigestItem;
 
-use crate::modules::base::Hex;
 use crate::modules::{base, Command, Module};
+use crate::modules::base::Hex;
 
 pub fn module<'a, 'b>() -> Module<'a, 'b> {
 	Module {
@@ -160,7 +160,7 @@ async fn get_chain(rpc: &str) -> Result<Chain, String> {
 	Ok(chain)
 }
 
-async fn get_block_info(
+pub async fn get_block_info(
 	number: Option<u64>,
 	rpc: &str,
 ) -> Result<
@@ -202,7 +202,7 @@ async fn get_block_info(
 				.ok_or("none error".to_string())?;
 			let number = {
 				let tmp = number_hex.trim_start_matches("0x");
-				let tmp = u64::from_str_radix(tmp, 16).map_err(|_| "decode failed")?;
+				let tmp = u64::from_str_radix(tmp, 16).map_err(|_| "Decode failed")?;
 				tmp
 			};
 			let hash = base::rpc_call::<_, String>(rpc, "chain_getBlockHash", &[number])
@@ -235,12 +235,12 @@ async fn get_block_info(
 		.iter()
 		.filter_map(|x| match x {
 			DigestItem::Other(data)
-				if data.len() >= 2 && data[0] == CRFG_LOG_PREFIX && data[1] == 0 =>
-			{
-				let input = &mut &data[2..];
-				let x: (u64, Vec<(AuthorityId, u64)>) = Decode::decode(input)?;
-				Some(x)
-			}
+			if data.len() >= 2 && data[0] == CRFG_LOG_PREFIX && data[1] == 0 =>
+				{
+					let input = &mut &data[2..];
+					let x: (u64, Vec<(AuthorityId, u64)>) = Decode::decode(input)?;
+					Some(x)
+				}
 			_ => None,
 		})
 		.next()
@@ -428,7 +428,186 @@ mod cases {
 	use crate::modules::Case;
 
 	pub fn cases() -> LinkedHashMap<&'static str, Vec<Case>> {
-		vec![].into_iter().collect()
+		vec![
+			(
+				"meter",
+				vec![Case {
+					desc: "".to_string(),
+					input: vec!["-r", "http:://localhost:9033"].into_iter().map(Into::into).collect(),
+					output: vec![r#"{
+  "result": {
+    "chain": {
+      "best": {
+        "number": 45,
+        "hash": "0x000004c65b2e9240dd85ddb101aef17d0cf2c2fdbe133ad9b44e870b445292d0",
+        "shard": {
+          "shard_num": 0,
+          "shard_count": 4
+        },
+        "pow": {
+          "timestamp": 1595251179978,
+          "time": "2020-07-20 21:19:39 +0800",
+          "target": "0x0000ffff00000000000000000000000000000000000000000000000000000000",
+          "diff": "65537"
+        },
+        "crfg": {
+          "authorities": [
+            [
+              "0x162a9760f58ba60b03dc97bfe7af8f748ee2a0e8c73718821aeed5303304c8b7",
+              13
+            ]
+          ]
+        }
+      },
+      "finalized": {
+        "number": 38,
+        "hash": "0x0000fd222b6c373a05b9641c2eaf16b896794e95ceb3cb44946e19495ddd193b",
+        "shard": {
+          "shard_num": 0,
+          "shard_count": 4
+        },
+        "pow": {
+          "timestamp": 1595250973546,
+          "time": "2020-07-20 21:16:13 +0800",
+          "target": "0x0000ffff00000000000000000000000000000000000000000000000000000000",
+          "diff": "65537"
+        },
+        "crfg": {
+          "authorities": [
+            [
+              "0x162a9760f58ba60b03dc97bfe7af8f748ee2a0e8c73718821aeed5303304c8b7",
+              13
+            ]
+          ]
+        }
+      }
+    },
+    "system": {
+      "name": "yee-node",
+      "version": "0.6.0",
+      "chain": "Development",
+      "health": {
+        "isSyncing": false,
+        "peers": 0,
+        "shouldHavePeers": true
+      },
+      "peers": [],
+      "network_state": {
+        "averageDownloadPerSec": 0,
+        "averageUploadPerSec": 0,
+        "connectedPeers": {},
+        "externalAddresses": [],
+        "listenedAddresses": [
+          "/ip6/::1/tcp/30333",
+          "/ip4/127.0.0.1/tcp/30333",
+          "/ip4/192.168.0.106/tcp/30333"
+        ],
+        "notConnectedPeers": {},
+        "peerId": "QmQZ8TjTqeDj3ciwr93EJ95hxfDsb9pEYDizUAbWpigtQN",
+        "peerset": null
+      }
+    },
+    "runtime": {
+      "apis": [
+        [
+          "0xdf6acb689907609b",
+          2
+        ],
+        [
+          "0x37e397fc7c91f5e4",
+          1
+        ],
+        [
+          "0x40fe3ad401f8959a",
+          3
+        ],
+        [
+          "0xd2bc9897eed08f15",
+          1
+        ],
+        [
+          "0x1e6525524a4d44ac",
+          1
+        ],
+        [
+          "0xf78b278be53f454c",
+          1
+        ],
+        [
+          "0x7801759919ee83e5",
+          1
+        ],
+        [
+          "0x47aa0c87543ebabb",
+          2
+        ],
+        [
+          "0x6eb83e3f57eeeff6",
+          1
+        ]
+      ],
+      "authoringVersion": 3,
+      "implName": "yee-rs",
+      "implVersion": 4,
+      "specName": "yee",
+      "specVersion": 4
+    },
+    "crfg": {
+      "config": {
+        "gossip_duration": {
+          "nanos": 333000000,
+          "secs": 0
+        },
+        "justification_period": 4096,
+        "local_key_public": "0x162a9760f58ba60b03dc97bfe7af8f748ee2a0e8c73718821aeed5303304c8b7",
+        "local_next_key_public": null,
+        "name": "rebel-linen-7201"
+      },
+      "set_id": 39,
+      "set_status": {
+        "Live": [
+          2,
+          {
+            "completable": true,
+            "estimate": [
+              "0x0000da5aee921dd40703acab9b9e221356ba98c48e90a78f9f601bc9116c54ac",
+              39
+            ],
+            "finalized": [
+              "0x0000da5aee921dd40703acab9b9e221356ba98c48e90a78f9f601bc9116c54ac",
+              39
+            ],
+            "prevote_ghost": [
+              "0x0000da5aee921dd40703acab9b9e221356ba98c48e90a78f9f601bc9116c54ac",
+              39
+            ]
+          }
+        ]
+      },
+      "voters": {
+        "threshold": 9,
+        "voters": [
+          [
+            "0x162a9760f58ba60b03dc97bfe7af8f748ee2a0e8c73718821aeed5303304c8b7",
+            13
+          ]
+        ],
+        "weights": {
+          "0x162a9760f58ba60b03dc97bfe7af8f748ee2a0e8c73718821aeed5303304c8b7": {
+            "canon_idx": 0,
+            "weight": 13
+          }
+        }
+      }
+    }
+  }
+}"#].into_iter().map(Into::into).collect(),
+					is_example: true,
+					is_test: false,
+					since: "0.1.0".to_string(),
+				}],
+			)
+		].into_iter().collect()
 	}
 }
 

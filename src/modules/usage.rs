@@ -239,7 +239,7 @@ fn get_usage_info(
 						let example = {
 							let input = case.input.clone();
 							let output = case.output.clone();
-							let input = vec!["$ dtool".to_string(), name.to_string()]
+							let input = vec!["$ yee-utils".to_string(), name.to_string()]
 								.into_iter()
 								.chain(input)
 								.collect::<Vec<String>>()

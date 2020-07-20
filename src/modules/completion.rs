@@ -24,7 +24,7 @@ pub fn run<'a, 'b>(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	let shell = Shell::from_str(shell)?;
 
 	let (mut app, _) = app::build_app();
-	app.gen_completions_to("dtool", shell, &mut stdout());
+	app.gen_completions_to("yee-utils", shell, &mut stdout());
 
 	Ok(vec![])
 }
