@@ -5720,8 +5720,8 @@ dependencies = [
 
 [[package]]
 name = "yee-signer"
-version = "0.1.0"
-source = "git+https://github.com/yeeco/yee-signer?tag=v0.1.2#26ba1a5c61c35a936a87e131983976ecd7891e0b"
+version = "0.2.0"
+source = "git+https://github.com/yeeco/yee-signer?tag=v0.2.0#cf4b20cee4cbbe7e83bedddf7658b87c432e528b"
 dependencies = [
  "impl-serde 0.1.1",
  "jni",
@@ -5921,6 +5921,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "sr-primitives",
+ "srml-support",
  "substrate-primitives",
  "tokio 0.2.21",
  "yee-consensus-pow",

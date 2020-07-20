@@ -13,14 +13,14 @@ const SHARD_COUNT_LIST: [u16; 2] = [4, 8];
 
 pub fn module<'a, 'b>() -> Module<'a, 'b> {
 	Module {
-		desc: "Key tool".to_string(),
+		desc: "Key tools".to_string(),
 		commands: commands(),
 		get_cases: cases::cases,
 	}
 }
 
 pub fn commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
-	let mut app = SubCommand::with_name("key").about("Key tool");
+	let mut app = SubCommand::with_name("key").about("Key tools");
 	for sub_command in sub_commands() {
 		app = app.subcommand(sub_command.app);
 	}
