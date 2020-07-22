@@ -1,13 +1,13 @@
 use clap::{Arg, ArgMatches, SubCommand};
-use rand::Rng;
 use rand::thread_rng;
+use rand::Rng;
 use serde::Serialize;
 use yee_primitives::{Address, AddressCodec, Hrp};
 use yee_sharding_primitives::utils;
 use yee_signer::KeyPair;
 
-use crate::modules::{base, Command, Module};
 use crate::modules::base::Hex;
+use crate::modules::{base, Command, Module};
 
 const SHARD_COUNT_LIST: [u16; 2] = [4, 8];
 

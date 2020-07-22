@@ -9,13 +9,13 @@ use tokio::runtime::Runtime;
 use yee_primitives::AddressCodec;
 use yee_primitives::Hrp;
 use yee_sharding_primitives::utils;
-use yee_signer::{KeyPair, PUBLIC_KEY_LEN, SECRET_KEY_LEN};
-use yee_signer::tx::{build_call, build_tx};
 use yee_signer::tx::call::Call;
-use yee_signer::tx::types::{Era, HASH_LEN, Transaction};
+use yee_signer::tx::types::{Era, Transaction, HASH_LEN};
+use yee_signer::tx::{build_call, build_tx};
+use yee_signer::{KeyPair, PUBLIC_KEY_LEN, SECRET_KEY_LEN};
 
-use crate::modules::{base, Command, Module};
 use crate::modules::base::Hex;
+use crate::modules::{base, Command, Module};
 
 pub fn module<'a, 'b>() -> Module<'a, 'b> {
 	Module {
@@ -106,8 +106,16 @@ fn desc(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	let tx: Transaction = Decode::decode(&mut &input[..]).ok_or("invalid tx")?;
 
 	#[derive(Serialize)]
+	struct SerdeSignature {
+		pub sender: Hex,
+		pub signature: Hex,
+		pub nonce: u64,
+		pub era: SerdeEra,
+	}
+
+	#[derive(Serialize)]
 	struct SerdeTransaction {
-		pub signature: Option<(Hex, Hex, u64, SerdeEra)>,
+		pub signature: Option<SerdeSignature>,
 		pub call: Call,
 	}
 
@@ -128,14 +136,14 @@ fn desc(matches: &ArgMatches) -> Result<Vec<String>, String> {
 
 	impl From<Transaction> for SerdeTransaction {
 		fn from(t: Transaction) -> Self {
-			let signature = t.signature.map(|(address, sig, nonce, era)| {
-				(
-					address.0.to_vec().into(),
-					sig.to_vec().into(),
-					nonce.0,
-					era.into(),
-				)
-			});
+			let signature = t
+				.signature
+				.map(|(address, sig, nonce, era)| SerdeSignature {
+					sender: address.0.to_vec().into(),
+					signature: sig.to_vec().into(),
+					nonce: nonce.0,
+					era: era.into(),
+				});
 			Self {
 				signature,
 				call: t.call,
@@ -252,7 +260,7 @@ fn get_best_block_info(rpc: &str) -> Result<(u64, String, Option<(u16, u16)>), S
 fn get_nonce(public_key: [u8; PUBLIC_KEY_LEN], rpc: &str) -> Result<u64, String> {
 	let nonce_key = get_storage_key(&public_key, b"System AccountNonce");
 
-	let params = (nonce_key, );
+	let params = (nonce_key,);
 
 	let nonce = base::rpc_call::<_, StorageData>(rpc, "state_getStorage", &params);
 
@@ -270,8 +278,8 @@ fn get_nonce(public_key: [u8; PUBLIC_KEY_LEN], rpc: &str) -> Result<u64, String>
 }
 
 fn get_storage_key<T>(key: &T, prefix: &[u8]) -> StorageKey
-	where
-		T: Codec,
+where
+	T: Codec,
 {
 	let a = blake2_256(&key.to_keyed_vec(prefix)).to_vec();
 	StorageKey(a)

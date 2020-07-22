@@ -1,7 +1,7 @@
 use std::collections::{hash_map::Entry, HashMap};
 
-use chrono::Local;
 use chrono::offset::TimeZone;
+use chrono::Local;
 use clap::{Arg, ArgMatches, SubCommand};
 use finality_tracker::FinalityTrackerDigestItem;
 use futures::future::join_all;
@@ -15,8 +15,8 @@ use yee_consensus_pow::{CompatibleDigestItem, PowSeal};
 use yee_runtime::opaque::Block;
 use yee_sharding::ShardingDigestItem;
 
-use crate::modules::{base, Command, Module};
 use crate::modules::base::Hex;
+use crate::modules::{base, Command, Module};
 
 pub fn module<'a, 'b>() -> Module<'a, 'b> {
 	Module {
@@ -235,12 +235,12 @@ pub async fn get_block_info(
 		.iter()
 		.filter_map(|x| match x {
 			DigestItem::Other(data)
-			if data.len() >= 2 && data[0] == CRFG_LOG_PREFIX && data[1] == 0 =>
-				{
-					let input = &mut &data[2..];
-					let x: (u64, Vec<(AuthorityId, u64)>) = Decode::decode(input)?;
-					Some(x)
-				}
+				if data.len() >= 2 && data[0] == CRFG_LOG_PREFIX && data[1] == 0 =>
+			{
+				let input = &mut &data[2..];
+				let x: (u64, Vec<(AuthorityId, u64)>) = Decode::decode(input)?;
+				Some(x)
+			}
 			_ => None,
 		})
 		.next()
@@ -428,13 +428,16 @@ mod cases {
 	use crate::modules::Case;
 
 	pub fn cases() -> LinkedHashMap<&'static str, Vec<Case>> {
-		vec![
-			(
-				"meter",
-				vec![Case {
-					desc: "".to_string(),
-					input: vec!["-r", "http:://localhost:9033"].into_iter().map(Into::into).collect(),
-					output: vec![r#"{
+		vec![(
+			"meter",
+			vec![Case {
+				desc: "".to_string(),
+				input: vec!["-r", "http:://localhost:9033"]
+					.into_iter()
+					.map(Into::into)
+					.collect(),
+				output: vec![
+					r#"{
   "result": {
     "chain": {
       "best": {
@@ -601,13 +604,18 @@ mod cases {
       }
     }
   }
-}"#].into_iter().map(Into::into).collect(),
-					is_example: true,
-					is_test: false,
-					since: "0.1.0".to_string(),
-				}],
-			)
-		].into_iter().collect()
+}"#,
+				]
+				.into_iter()
+				.map(Into::into)
+				.collect(),
+				is_example: true,
+				is_test: false,
+				since: "0.1.0".to_string(),
+			}],
+		)]
+		.into_iter()
+		.collect()
 	}
 }
 
