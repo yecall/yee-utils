@@ -257,7 +257,7 @@ dependencies = [
  "cfg-if",
  "clang-sys",
  "clap",
- "env_logger",
+ "env_logger 0.6.2",
  "hashbrown 0.1.8",
  "lazy_static",
  "log 0.4.8",
@@ -879,6 +879,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "env_logger"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44533bbbb3bb3c1fa17d9f2e4e38bbbaf8396ba82193c4cb1b6445d711445d36"
+dependencies = [
+ "atty",
+ "humantime",
+ "log 0.4.8",
+ "regex",
+ "termcolor",
+]
+
+[[package]]
 name = "environmental"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1137,6 +1150,12 @@ dependencies = [
  "proc-macro-nested",
  "slab",
 ]
+
+[[package]]
+name = "galois_2p8"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c6114865fc314f51f46ba06fd08e780090c3c542455e9c0b4b8854149261701"
 
 [[package]]
 name = "gcc"
@@ -2942,6 +2961,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "primal-check"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e65f96c0a171f887198c274392c99a116ef65aa7f53f3b6d4902f493965c2d1"
+dependencies = [
+ "num-integer",
+]
+
+[[package]]
 name = "primitive-types"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4012,6 +4040,24 @@ dependencies = [
  "srml-support",
  "srml-system",
  "substrate-inherents",
+]
+
+[[package]]
+name = "sss-rs"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "786885cbea22f9d3877666304e659f2271ff3d8561e8427f1e3213e77109da50"
+dependencies = [
+ "env_logger 0.7.1",
+ "galois_2p8",
+ "hex 0.4.2",
+ "lazy_static",
+ "log 0.4.8",
+ "num-traits",
+ "primal-check",
+ "rand 0.7.3",
+ "rand_chacha 0.2.2",
+ "rust-crypto",
 ]
 
 [[package]]
@@ -5936,6 +5982,7 @@ dependencies = [
  "serde_json",
  "sr-primitives",
  "srml-support",
+ "sss-rs",
  "substrate-primitives",
  "tokio 0.2.21",
  "yee-consensus-pow",

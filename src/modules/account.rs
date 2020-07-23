@@ -13,14 +13,14 @@ const SHARD_COUNT_LIST: [u16; 2] = [4, 8];
 
 pub fn module<'a, 'b>() -> Module<'a, 'b> {
 	Module {
-		desc: "Key tools".to_string(),
+		desc: "Account tools".to_string(),
 		commands: commands(),
 		get_cases: cases::cases,
 	}
 }
 
 pub fn commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
-	let mut app = SubCommand::with_name("key").about("Key tools");
+	let mut app = SubCommand::with_name("account").about("Account tools");
 	for sub_command in sub_commands() {
 		app = app.subcommand(sub_command.app);
 	}
@@ -37,7 +37,7 @@ fn sub_commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
 	vec![
 		Command {
 			app: SubCommand::with_name("generate")
-				.about("Generate key pair")
+				.about("Generate account")
 				.arg(
 					Arg::with_name("SHARD_NUM")
 						.long("shard-num")
@@ -80,32 +80,6 @@ fn sub_commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
 				.arg(Arg::with_name("INPUT").required(false).index(1)),
 			f: address,
 		},
-		Command {
-			app: SubCommand::with_name("put_key")
-				.about("Put secret key to a keystore file")
-				.arg(
-					Arg::with_name("KEYSTORE_PATH")
-						.long("keystore-path")
-						.short("k")
-						.help("Keystore path")
-						.takes_value(true)
-						.required(true),
-				),
-			f: put_key,
-		},
-		Command {
-			app: SubCommand::with_name("get_key")
-				.about("Get secret key from a keystore file")
-				.arg(
-					Arg::with_name("KEYSTORE_PATH")
-						.long("keystore-path")
-						.short("k")
-						.help("Keystore path")
-						.takes_value(true)
-						.required(true),
-				),
-			f: get_key,
-		},
 	]
 }
 
@@ -121,29 +95,8 @@ fn generate(matches: &ArgMatches) -> Result<Vec<String>, String> {
 		.parse::<u16>()
 		.map_err(|_| "Invalid shard count")?;
 
-	let (mini_secret_key, public_key, secret_key, address, testnet_address) = loop {
-		let mini_secret_key = random_32_bytes(&mut thread_rng());
-		let key_pair = KeyPair::from_mini_secret_key(&mini_secret_key)?;
-		let public_key = key_pair.public_key();
-		let secret_key = key_pair.secret_key();
-		let address_shard_num = utils::shard_num_for_bytes(&public_key, shard_count);
-		if address_shard_num == Some(shard_num) {
-			let address = public_key
-				.to_address(Hrp::MAINNET)
-				.map_err(|_e| "Address encode failed")?;
-			let testnet_address = public_key
-				.to_address(Hrp::TESTNET)
-				.map_err(|_e| "Address encode failed")?;
-
-			break (
-				mini_secret_key,
-				public_key,
-				secret_key,
-				address,
-				testnet_address,
-			);
-		}
-	};
+	let (mini_secret_key, public_key, secret_key, address, testnet_address) =
+		generate_account(shard_num, shard_count)?;
 
 	#[derive(Serialize)]
 	struct Output {
@@ -295,44 +248,7 @@ fn public_key(matches: &ArgMatches) -> Result<Vec<String>, String> {
 
 	let public_key = input;
 
-	let address = public_key
-		.to_address(Hrp::MAINNET)
-		.map_err(|_e| "Address encode failed")?;
-	let testnet_address = public_key
-		.to_address(Hrp::TESTNET)
-		.map_err(|_e| "Address encode failed")?;
-
-	#[derive(Serialize)]
-	struct Shard {
-		shard_num: u16,
-		shard_count: u16,
-	}
-
-	let shard = SHARD_COUNT_LIST
-		.iter()
-		.map(|&shard_count| {
-			let shard_num = utils::shard_num_for_bytes(&public_key, shard_count).expect("qed");
-			Shard {
-				shard_num,
-				shard_count,
-			}
-		})
-		.collect::<Vec<_>>();
-
-	#[derive(Serialize)]
-	struct Output {
-		public_key: Hex,
-		address: String,
-		testnet_address: String,
-		shard: Vec<Shard>,
-	}
-
-	let output = Output {
-		public_key: public_key.into(),
-		address: address.0,
-		testnet_address: testnet_address.0,
-		shard,
-	};
+	let output = desc_public_key(public_key)?;
 
 	base::output(&output)
 }
@@ -380,43 +296,79 @@ fn address(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	base::output(&output)
 }
 
-fn put_key(matches: &ArgMatches) -> Result<Vec<String>, String> {
-	let keystore_path = matches.value_of("KEYSTORE_PATH").expect("qed");
+pub fn generate_account(
+	shard_num: u16,
+	shard_count: u16,
+) -> Result<([u8; 32], [u8; 32], [u8; 64], Address, Address), String> {
+	loop {
+		let mini_secret_key = random_32_bytes(&mut thread_rng());
+		let key_pair = KeyPair::from_mini_secret_key(&mini_secret_key)?;
+		let public_key = key_pair.public_key();
+		let secret_key = key_pair.secret_key();
+		let address_shard_num = utils::shard_num_for_bytes(&public_key, shard_count);
+		if address_shard_num == Some(shard_num) {
+			let address = public_key
+				.to_address(Hrp::MAINNET)
+				.map_err(|_e| "Address encode failed")?;
+			let testnet_address = public_key
+				.to_address(Hrp::TESTNET)
+				.map_err(|_e| "Address encode failed")?;
 
-	match std::fs::File::open(keystore_path) {
-		Ok(_) => return Err("Keystore file exists".to_string()),
-		_ => (),
+			break Ok((
+				mini_secret_key,
+				public_key,
+				secret_key,
+				address,
+				testnet_address,
+			));
+		}
 	}
-
-	let secret_key = rpassword::read_password_from_tty(Some("Secret key (Hex): ")).unwrap();
-
-	let secret_key: Vec<u8> = secret_key
-		.parse::<Hex>()
-		.map_err(|_| "Invalid secret key")?
-		.into();
-
-	let _key_pair = KeyPair::from_secret_key(&secret_key).map_err(|_| "Invalid secret key")?;
-
-	let password = rpassword::read_password_from_tty(Some("Password: ")).unwrap();
-
-	base::put_key(&secret_key, &password, keystore_path)?;
-
-	base::output("Ok")
 }
 
-fn get_key(matches: &ArgMatches) -> Result<Vec<String>, String> {
-	let keystore_path = matches.value_of("KEYSTORE_PATH").expect("qed");
-
-	let password = rpassword::read_password_from_tty(Some("Password: ")).unwrap();
-
-	let secret_key = base::get_key(&password, keystore_path)?;
-
-	let secret_key: Hex = secret_key.into();
-
-	base::output(secret_key)
+#[derive(Serialize)]
+pub struct Shard {
+	shard_num: u16,
+	shard_count: u16,
 }
 
-fn random_32_bytes<R: Rng + ?Sized>(rng: &mut R) -> [u8; 32] {
+#[derive(Serialize)]
+pub struct DescPublicKeyOutput {
+	public_key: Hex,
+	address: String,
+	testnet_address: String,
+	shard: Vec<Shard>,
+}
+
+pub fn desc_public_key(public_key: Vec<u8>) -> Result<DescPublicKeyOutput, String> {
+	let address = public_key
+		.to_address(Hrp::MAINNET)
+		.map_err(|_e| "Address encode failed")?;
+	let testnet_address = public_key
+		.to_address(Hrp::TESTNET)
+		.map_err(|_e| "Address encode failed")?;
+
+	let shard = SHARD_COUNT_LIST
+		.iter()
+		.map(|&shard_count| {
+			let shard_num = utils::shard_num_for_bytes(&public_key, shard_count).expect("qed");
+			Shard {
+				shard_num,
+				shard_count,
+			}
+		})
+		.collect::<Vec<_>>();
+
+	let output = DescPublicKeyOutput {
+		public_key: public_key.into(),
+		address: address.0,
+		testnet_address: testnet_address.0,
+		shard,
+	};
+
+	Ok(output)
+}
+
+pub fn random_32_bytes<R: Rng + ?Sized>(rng: &mut R) -> [u8; 32] {
 	let mut ret = [0u8; 32];
 	rng.fill_bytes(&mut ret);
 	ret
@@ -430,9 +382,9 @@ mod cases {
 	pub fn cases() -> LinkedHashMap<&'static str, Vec<Case>> {
 		vec![
 			(
-				"key",
+				"account",
 				vec![Case {
-					desc: "Generate key pair".to_string(),
+					desc: "Generate account".to_string(),
 					input: vec!["generate", "-s", "0", "-c", "4"].into_iter().map(Into::into).collect(),
 					output: vec![r#"{
   "result": {
@@ -544,26 +496,7 @@ mod cases {
 					is_example: true,
 					is_test: true,
 					since: "0.1.0".to_string(),
-				}, Case {
-					desc: "Put secret key to a keystore file".to_string(),
-					input: vec!["put_key", "-k", "./keystore.dat"].into_iter().map(Into::into).collect(),
-					output: vec![r#"{
-  "result": "Ok"
-}
-"#].into_iter().map(Into::into).collect(),
-					is_example: true,
-					is_test: false,
-					since: "0.1.0".to_string(),
-				}, Case {
-					desc: "Get secret key from a keystore file".to_string(),
-					input: vec!["get_key", "-k", "./keystore.dat"].into_iter().map(Into::into).collect(),
-					output: vec![r#"{
-  "result": "0xa8666e483fd6c26dbb6deeec5afae765561ecc94df432f02920fc5d9cd4ae206ead577e5bc11215d4735cee89218e22f2d950a2a4667745ea1b5ea8b26bba5d6"
-}"#].into_iter().map(Into::into).collect(),
-					is_example: true,
-					is_test: false,
-					since: "0.1.0".to_string(),
-				}],
+				}, ],
 			),
 		].into_iter().collect()
 	}

@@ -29,6 +29,7 @@ rpassword = "4.0.5"
 ring = "0.14"
 rust-crypto = "0.2"
 num-traits = "0.2.12"
+sss-rs = "0.7"
 yee-signer = { git = "https://github.com/yeeco/yee-signer", tag="v0.2.0"}
 yee-primitives = { git = "https://github.com/yeeco/yeeroot", branch = "master" }
 yee-sharding = { git = "https://github.com/yeeco/yeeroot", branch = "master" }

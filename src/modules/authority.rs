@@ -7,14 +7,14 @@ use crate::modules::{base, Command, Module};
 
 pub fn module<'a, 'b>() -> Module<'a, 'b> {
 	Module {
-		desc: "Authority key tools".to_string(),
+		desc: "Authority tools".to_string(),
 		commands: commands(),
 		get_cases: cases::cases,
 	}
 }
 
 pub fn commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
-	let mut app = SubCommand::with_name("authority_key").about("Authority key tools");
+	let mut app = SubCommand::with_name("authority").about("Authority tools");
 	for sub_command in sub_commands() {
 		app = app.subcommand(sub_command.app);
 	}
@@ -30,7 +30,7 @@ fn run(matches: &ArgMatches) -> Result<Vec<String>, String> {
 fn sub_commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
 	vec![
 		Command {
-			app: SubCommand::with_name("generate").about("Generate authority key phrase"),
+			app: SubCommand::with_name("generate").about("Generate authority"),
 			f: generate,
 		},
 		Command {
@@ -89,20 +89,30 @@ mod cases {
 
 	pub fn cases() -> LinkedHashMap<&'static str, Vec<Case>> {
 		vec![(
-			"key",
+			"authority",
 			vec![
 				Case {
-					desc: "Generate authority key phrase".to_string(),
+					desc: "Generate authority".to_string(),
 					input: vec!["generate"].into_iter().map(Into::into).collect(),
-					output: vec![r#""#].into_iter().map(Into::into).collect(),
+					output: vec![r#"{
+  "result": {
+    "phrase": "travel pair strategy banana marine nature clean remember later excess arrow merry",
+    "public_key": "0x2fc157a6859a9d48e1ff8d4e3e3fba5ffb7e1bcbb2e390f120e853d3997d677a"
+  }
+}"#].into_iter().map(Into::into).collect(),
 					is_example: true,
 					is_test: false,
 					since: "0.1.0".to_string(),
 				},
 				Case {
 					desc: "Desc authority key phrase".to_string(),
-					input: vec!["phrase", ""].into_iter().map(Into::into).collect(),
-					output: vec![r#""#].into_iter().map(Into::into).collect(),
+					input: vec!["phrase", "'travel pair strategy banana marine nature clean remember later excess arrow merry'"].into_iter().map(Into::into).collect(),
+					output: vec![r#"{
+  "result": {
+    "phrase": "travel pair strategy banana marine nature clean remember later excess arrow merry",
+    "public_key": "0x2fc157a6859a9d48e1ff8d4e3e3fba5ffb7e1bcbb2e390f120e853d3997d677a"
+  }
+}"#].into_iter().map(Into::into).collect(),
 					is_example: true,
 					is_test: true,
 					since: "0.1.0".to_string(),
