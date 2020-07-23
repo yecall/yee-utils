@@ -2,10 +2,11 @@ use clap::{App, ArgMatches};
 use linked_hash_map::LinkedHashMap;
 use std::iter;
 
-mod authority_key;
+mod account;
+mod authority;
 mod base;
 mod completion;
-mod key;
+mod keystore;
 mod meter;
 mod tx;
 mod usage;
@@ -44,10 +45,11 @@ impl<'a, 'b> ModuleManager<'a, 'b> {
 			modules: Vec::new(),
 			commands: LinkedHashMap::new(),
 		};
-		mm.register(key::module());
+		mm.register(account::module());
+		mm.register(keystore::module());
 		mm.register(meter::module());
 		mm.register(tx::module());
-		mm.register(authority_key::module());
+		mm.register(authority::module());
 		mm
 	}
 

@@ -15,6 +15,7 @@ use yee_signer::tx::{build_call, build_tx};
 use yee_signer::{KeyPair, PUBLIC_KEY_LEN, SECRET_KEY_LEN};
 
 use crate::modules::base::Hex;
+use crate::modules::keystore::get_keystore;
 use crate::modules::{base, Command, Module};
 
 pub fn module<'a, 'b>() -> Module<'a, 'b> {
@@ -168,8 +169,6 @@ fn compose(matches: &ArgMatches) -> Result<Vec<String>, String> {
 
 	let call = matches.value_of("CALL").expect("qed");
 
-	let password = rpassword::read_password_from_tty(Some("Password: ")).unwrap();
-
 	let (best_number, best_hash, shard_info) = get_best_block_info(rpc)?;
 
 	let best_hash = {
@@ -179,7 +178,7 @@ fn compose(matches: &ArgMatches) -> Result<Vec<String>, String> {
 
 	let (shard_num, shard_count) = shard_info.ok_or("Invalid shard info".to_string())?;
 
-	let secret_key = base::get_key(&password, keystore_path)?;
+	let secret_key = get_keystore(keystore_path)?;
 
 	let key_pair = KeyPair::from_secret_key(&secret_key)?;
 
@@ -299,17 +298,17 @@ mod cases {
 					input: vec!["desc", "0x290281ff927b69286c0137e2ff66c6e561f721d2e6a2e9b92402d2eed7aebdca99005c70a8796f3650bf99d094f7004f27849bf712ce7a032425ce13b8e334ff834b084f3a7ead9eb04520912a1018c26d3c49519f6d70c7fa4f799fa33b007854efd40f00a5030400ffa6158c2b928d5d495922366ad9b4339a023366b322fb22f4db12751e0ea93f5ca10f"].into_iter().map(Into::into).collect(),
 					output: vec![r#"{
   "result": {
-    "signature": [
-      "0xff927b69286c0137e2ff66c6e561f721d2e6a2e9b92402d2eed7aebdca99005c70",
-      "0xa8796f3650bf99d094f7004f27849bf712ce7a032425ce13b8e334ff834b084f3a7ead9eb04520912a1018c26d3c49519f6d70c7fa4f799fa33b007854efd40f",
-      0,
-      {
+    "signature": {
+      "sender": "0xff927b69286c0137e2ff66c6e561f721d2e6a2e9b92402d2eed7aebdca99005c70",
+      "signature": "0xa8796f3650bf99d094f7004f27849bf712ce7a032425ce13b8e334ff834b084f3a7ead9eb04520912a1018c26d3c49519f6d70c7fa4f799fa33b007854efd40f",
+      "nonce": 0,
+      "era": {
         "Mortal": [
           64,
           58
         ]
       }
-    ],
+    },
     "call": {
       "module": 4,
       "method": 0,
