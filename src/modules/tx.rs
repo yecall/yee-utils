@@ -346,25 +346,29 @@ fn search(matches: &ArgMatches) -> Result<Vec<String>, String> {
 
 	let mut items = vec![];
 
-	let build_search_item =
-		|raw: Vec<u8>, block_number: BlockNumber| -> Result<SearchItem, String> {
-			let tx: Transaction = Decode::decode(&mut &raw[..]).ok_or("invalid tx")?;
-			let hash = blake2_256(&raw).to_vec();
-			let item = SearchItem {
-				hash,
-				raw,
-				tx,
-				block_number,
-			};
-			Ok(item)
+	let build_search_item = |raw: Vec<u8>, block: SearchItemBlock| -> Result<SearchItem, String> {
+		let tx: Transaction = Decode::decode(&mut &raw[..]).ok_or("invalid tx")?;
+		let hash = blake2_256(&raw).to_vec();
+		let item = SearchItem {
+			hash,
+			raw,
+			tx,
+			block,
 		};
+		Ok(item)
+	};
 
 	// append in block
 	if let Some((from, to)) = number_range {
 		for i in from..(to + 1) {
-			let extrinsics = get_block_extrinsics(rpc, i)?;
-			for raw in extrinsics {
-				let item = build_search_item(raw, BlockNumber::Number(i))?;
+			let (extrinsics, block_hash) = get_block_extrinsics(rpc, i)?;
+			for (index, raw) in extrinsics.into_iter().enumerate() {
+				let block = SearchItemBlock::Number {
+					number: i,
+					hash: block_hash.clone(),
+					index: index as u32,
+				};
+				let item = build_search_item(raw, block)?;
 				let accept = accept_item(
 					&item,
 					expected_hash.as_ref(),
@@ -384,7 +388,7 @@ fn search(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	if search_in_pending {
 		let extrinsics = get_pending_extrinsics(rpc)?;
 		for raw in extrinsics {
-			let item = build_search_item(raw, BlockNumber::Pending)?;
+			let item = build_search_item(raw, SearchItemBlock::Pending)?;
 			let accept = accept_item(
 				&item,
 				expected_hash.as_ref(),
@@ -403,7 +407,7 @@ fn search(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	if search_in_waiting {
 		let extrinsics = get_waiting_extrinsics(rpc)?;
 		for raw in extrinsics {
-			let item = build_search_item(raw, BlockNumber::Waiting)?;
+			let item = build_search_item(raw, SearchItemBlock::Waiting)?;
 			let accept = accept_item(
 				&item,
 				expected_hash.as_ref(),
@@ -430,7 +434,17 @@ struct SearchItem {
 	hash: Vec<u8>,
 	raw: Vec<u8>,
 	tx: Transaction,
-	block_number: BlockNumber,
+	block: SearchItemBlock,
+}
+
+enum SearchItemBlock {
+	Number {
+		number: u64,
+		hash: Vec<u8>,
+		index: u32,
+	},
+	Pending,
+	Waiting,
 }
 
 #[derive(Serialize)]
@@ -438,7 +452,14 @@ struct SerdeSearchItem {
 	hash: Hex,
 	raw: Hex,
 	tx: SerdeTransaction,
-	block_number: BlockNumber,
+	block: SerdeSearchItemBlock,
+}
+
+#[derive(Serialize)]
+enum SerdeSearchItemBlock {
+	Number { number: u64, hash: Hex, index: u32 },
+	Pending,
+	Waiting,
 }
 
 impl From<SearchItem> for SerdeSearchItem {
@@ -447,7 +468,25 @@ impl From<SearchItem> for SerdeSearchItem {
 			hash: t.hash.into(),
 			raw: t.raw.into(),
 			tx: t.tx.into(),
-			block_number: t.block_number,
+			block: t.block.into(),
+		}
+	}
+}
+
+impl From<SearchItemBlock> for SerdeSearchItemBlock {
+	fn from(t: SearchItemBlock) -> Self {
+		match t {
+			SearchItemBlock::Number {
+				number,
+				hash,
+				index,
+			} => SerdeSearchItemBlock::Number {
+				number,
+				hash: hash.into(),
+				index,
+			},
+			SearchItemBlock::Pending => SerdeSearchItemBlock::Pending,
+			SearchItemBlock::Waiting => SerdeSearchItemBlock::Waiting,
 		}
 	}
 }
@@ -536,7 +575,12 @@ fn accept_item(
 	}
 
 	if !include_inherent {
-		if item.tx.signature.is_none() {
+		let no_sig = item.tx.signature.is_none();
+		let is_relay_tx = match item.tx.call {
+			Call::Relay(_) => true,
+			_ => false,
+		};
+		if no_sig && !is_relay_tx {
 			return false;
 		}
 	}
@@ -552,9 +596,9 @@ fn get_best_block_info(rpc: &str) -> Result<(u64, String, Option<(u16, u16)>), S
 	Ok((block_info.0, block_info.1, block_info.2))
 }
 
-fn get_block_extrinsics(rpc: &str, number: u64) -> Result<Vec<Vec<u8>>, String> {
+fn get_block_extrinsics(rpc: &str, number: u64) -> Result<(Vec<Vec<u8>>, Vec<u8>), String> {
 	let mut runtime = Runtime::new().expect("qed");
-	let hash = runtime
+	let block_hash = runtime
 		.block_on(base::rpc_call::<_, String>(
 			rpc,
 			"chain_getBlockHash",
@@ -562,13 +606,17 @@ fn get_block_extrinsics(rpc: &str, number: u64) -> Result<Vec<Vec<u8>>, String> 
 		))?
 		.result;
 
-	let hash = hash.ok_or(format!("Block number not found: {}", number))?;
+	let block_hash = block_hash.ok_or(format!("Block number not found: {}", number))?;
 
 	let block = runtime
-		.block_on(base::rpc_call::<_, Value>(rpc, "chain_getBlock", &(&hash,)))?
+		.block_on(base::rpc_call::<_, Value>(
+			rpc,
+			"chain_getBlock",
+			&(&block_hash,),
+		))?
 		.result;
 
-	let block: Value = block.ok_or(format!("Block hash not found: {}", hash))?;
+	let block: Value = block.ok_or(format!("Block hash not found: {}", block_hash))?;
 
 	let block = block
 		.as_object()
@@ -594,7 +642,9 @@ fn get_block_extrinsics(rpc: &str, number: u64) -> Result<Vec<Vec<u8>>, String> 
 		})
 		.collect::<Result<Vec<Vec<u8>>, String>>()?;
 
-	Ok(extrinsics)
+	let block_hash: Vec<u8> = Hex::from_str(&block_hash)?.into();
+
+	Ok((extrinsics, block_hash))
 }
 
 fn get_pending_extrinsics(rpc: &str) -> Result<Vec<Vec<u8>>, String> {
