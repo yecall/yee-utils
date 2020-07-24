@@ -4,7 +4,10 @@ use std::io::{BufRead, Read, Write};
 use std::str::FromStr;
 
 use clap::ArgMatches;
-use serde::{de::DeserializeOwned, Deserialize, Serialize, Serializer};
+use serde::{
+	de::{self, DeserializeOwned},
+	Deserialize, Deserializer, Serialize, Serializer,
+};
 
 use crate::modules::Command;
 
@@ -53,21 +56,21 @@ pub fn output_error(s: String) -> String {
 	output
 }
 
-#[derive(Serialize)]
-struct Error {
+#[derive(Serialize, Deserialize)]
+pub struct Error {
 	code: i32,
 	message: String,
 }
 
-#[derive(Serialize)]
-struct Output<T: Serialize> {
+#[derive(Serialize, Deserialize)]
+pub struct Output<T: Serialize> {
 	#[serde(skip_serializing_if = "Option::is_none")]
-	result: Option<T>,
+	pub result: Option<T>,
 	#[serde(skip_serializing_if = "Option::is_none")]
-	error: Option<Error>,
+	pub error: Option<Error>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Hex(Vec<u8>);
 
 impl FromStr for Hex {
@@ -102,6 +105,17 @@ impl Serialize for Hex {
 		S: Serializer,
 	{
 		serializer.serialize_str(&format!("0x{}", hex::encode(&self.0)))
+	}
+}
+
+impl<'de> Deserialize<'de> for Hex {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		let str = String::deserialize(deserializer)?;
+		let hex = Hex::from_str(&str).map_err(|e| de::Error::custom(e))?;
+		Ok(hex)
 	}
 }
 

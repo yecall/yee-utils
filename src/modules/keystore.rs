@@ -291,10 +291,10 @@ fn export(matches: &ArgMatches) -> Result<Vec<String>, String> {
 #[derive(Serialize, Deserialize)]
 struct Keystore {
 	version: String,
-	index_salt: String,
-	key_salt: String,
-	public_key: String,
-	share_list: HashMap<String, String>,
+	index_salt: Hex,
+	key_salt: Hex,
+	public_key: Hex,
+	share_list: HashMap<String, Hex>,
 	require: u8,
 }
 
@@ -339,28 +339,16 @@ fn put_keystore(
 				tmp.into()
 			};
 			let share = aes_enc(&share, &password, &key_salt)?;
-			let share: String = {
-				let tmp: Hex = share.into();
-				tmp.into()
-			};
+			let share: Hex = share.into();
 			Ok((index, share))
 		})
 		.collect::<Result<HashMap<_, _>, String>>()?;
 
 	let keystore = Keystore {
 		version: KEYSTORE_VERSION.to_string(),
-		index_salt: {
-			let tmp: Hex = index_salt.to_vec().into();
-			tmp.into()
-		},
-		key_salt: {
-			let tmp: Hex = key_salt.to_vec().into();
-			tmp.into()
-		},
-		public_key: {
-			let tmp: Hex = public_key.to_vec().into();
-			tmp.into()
-		},
+		index_salt: index_salt.to_vec().into(),
+		key_salt: key_salt.to_vec().into(),
+		public_key: public_key.to_vec().into(),
 		share_list,
 		require,
 	};
@@ -389,8 +377,8 @@ pub fn get_keystore(keystore_path: &str) -> Result<Vec<u8>, String> {
 		password_list.push(password);
 	}
 
-	let index_salt: Vec<u8> = Hex::from_str(&keystore.index_salt)?.into();
-	let key_salt: Vec<u8> = Hex::from_str(&keystore.key_salt)?.into();
+	let index_salt: Vec<u8> = keystore.index_salt.into();
+	let key_salt: Vec<u8> = keystore.key_salt.into();
 
 	let share_list = keystore.share_list;
 
@@ -400,8 +388,10 @@ pub fn get_keystore(keystore_path: &str) -> Result<Vec<u8>, String> {
 			let index: Hex = password_to_index(&password, &index_salt).into();
 			let index: String = index.into();
 
-			let share = share_list.get(&index).ok_or("Invalid password list")?;
-			let share: Hex = Hex::from_str(share)?;
+			let share = share_list
+				.get(&index)
+				.ok_or("Invalid password list")?
+				.clone();
 			let share: Vec<u8> = share.into();
 			let share = aes_dec(&share, &password, &key_salt)?;
 			Ok(share)
@@ -426,10 +416,7 @@ pub fn get_keystore(keystore_path: &str) -> Result<Vec<u8>, String> {
 
 	let key_pair = KeyPair::from_secret_key(&secret_key)?;
 
-	let expected_public_key: String = {
-		let tmp: Hex = key_pair.public_key().to_vec().into();
-		tmp.into()
-	};
+	let expected_public_key: Hex = key_pair.public_key().to_vec().into();
 
 	if expected_public_key != keystore.public_key {
 		return Err("Invalid password list".to_string());

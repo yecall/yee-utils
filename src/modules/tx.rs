@@ -4,8 +4,9 @@ use std::str::FromStr;
 use clap::{Arg, ArgMatches, SubCommand};
 use num_bigint::BigUint;
 use num_traits::cast::ToPrimitive;
+use parity_codec::alloc::borrow::Cow;
 use parity_codec::{Codec, Compact, Decode, Encode, KeyedVec};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use substrate_primitives::blake2_256;
 use substrate_primitives::storage::{StorageData, StorageKey};
@@ -18,7 +19,7 @@ use yee_signer::tx::types::{Era, Transaction, HASH_LEN};
 use yee_signer::tx::{build_call, build_tx};
 use yee_signer::{KeyPair, PUBLIC_KEY_LEN, SECRET_KEY_LEN};
 
-use crate::modules::base::Hex;
+use crate::modules::base::{Hex, RpcResponse};
 use crate::modules::keystore::get_keystore;
 use crate::modules::{base, Command, Module};
 
@@ -101,6 +102,20 @@ fn sub_commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
 			f: compose,
 		},
 		Command {
+			app: SubCommand::with_name("submit")
+				.about("Submit tx")
+				.arg(
+					Arg::with_name("RPC")
+						.long("rpc")
+						.short("r")
+						.help("RPC address")
+						.takes_value(true)
+						.required(true),
+				)
+				.arg(Arg::with_name("INPUT").required(false).index(1)),
+			f: submit,
+		},
+		Command {
 			app: SubCommand::with_name("search")
 				.about("Search tx")
 				.arg(
@@ -181,6 +196,13 @@ fn compose(matches: &ArgMatches) -> Result<Vec<String>, String> {
 
 	let call = matches.value_of("CALL").expect("qed");
 
+	let call_cow = match call {
+		"-" => Cow::Owned(base::input_string(matches)?),
+		call => Cow::Borrowed(call),
+	};
+
+	let call = call_cow.as_ref();
+
 	let (best_number, best_hash, shard_info) = get_best_block_info(rpc)?;
 
 	let best_hash = {
@@ -226,20 +248,7 @@ fn compose(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	let tx = build_tx(secret_key, nonce, period, current, current_hash, call)?;
 	let raw = tx.encode();
 
-	#[derive(Serialize)]
-	struct Result {
-		shard_num: u16,
-		shard_count: u16,
-		sender_address: String,
-		sender_testnet_address: String,
-		nonce: u64,
-		period: u64,
-		current: u64,
-		current_hash: Hex,
-		raw: Hex,
-	}
-
-	let result = Result {
+	let result = ComposeResult {
 		shard_num,
 		shard_count,
 		sender_address: public_key
@@ -258,6 +267,51 @@ fn compose(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	};
 
 	base::output(result)
+}
+
+fn submit(matches: &ArgMatches) -> Result<Vec<String>, String> {
+	let input = base::input_string(matches)?;
+
+	let rpc = matches.value_of("RPC").expect("qed");
+
+	let try_get_raw_from_hex = |input: String| -> Result<String, String> {
+		let _raw = Hex::from_str(&input)?;
+		Ok(input)
+	};
+
+	let try_get_raw_from_json = |input: String| -> Result<String, String> {
+		let result: base::Output<ComposeResult> =
+			serde_json::from_str(&input).map_err(|_| "Invalid json")?;
+		let result = result.result.ok_or("Invalid json")?;
+		Ok(result.raw.into())
+	};
+
+	let mut raw = try_get_raw_from_hex(input.clone());
+
+	if raw.is_err() {
+		raw = try_get_raw_from_json(input);
+	}
+
+	let raw = raw.map_err(|e| format!("Invalid raw: {}", e))?;
+
+	// verify raw
+	let raw1 = Hex::from_str(&raw)?;
+	let raw1: Vec<u8> = raw1.into();
+	let _tx: Transaction = Decode::decode(&mut &raw1[..]).ok_or("Invalid tx")?;
+
+	// submit
+	let mut runtime = Runtime::new().expect("qed");
+	let result: RpcResponse<String> = runtime.block_on(base::rpc_call::<_, String>(
+		rpc,
+		"author_submitExtrinsic",
+		&(raw,),
+	))?;
+
+	if let Some(error) = result.error {
+		return Err(error.message);
+	}
+
+	base::output(result.result)
 }
 
 fn search(matches: &ArgMatches) -> Result<Vec<String>, String> {
@@ -428,6 +482,19 @@ fn search(matches: &ArgMatches) -> Result<Vec<String>, String> {
 		.collect::<Vec<SerdeSearchItem>>();
 
 	base::output(&result)
+}
+
+#[derive(Serialize, Deserialize)]
+struct ComposeResult {
+	shard_num: u16,
+	shard_count: u16,
+	sender_address: String,
+	sender_testnet_address: String,
+	nonce: u64,
+	period: u64,
+	current: u64,
+	current_hash: Hex,
+	raw: Hex,
 }
 
 struct SearchItem {
@@ -730,12 +797,12 @@ mod cases {
 
 	pub fn cases() -> LinkedHashMap<&'static str, Vec<Case>> {
 		vec![
-			(
-				"tx",
-				vec![Case {
-					desc: "Desc tx".to_string(),
-					input: vec!["desc", "0x290281ff927b69286c0137e2ff66c6e561f721d2e6a2e9b92402d2eed7aebdca99005c70a8796f3650bf99d094f7004f27849bf712ce7a032425ce13b8e334ff834b084f3a7ead9eb04520912a1018c26d3c49519f6d70c7fa4f799fa33b007854efd40f00a5030400ffa6158c2b928d5d495922366ad9b4339a023366b322fb22f4db12751e0ea93f5ca10f"].into_iter().map(Into::into).collect(),
-					output: vec![r#"{
+            (
+                "tx",
+                vec![Case {
+                    desc: "Desc tx".to_string(),
+                    input: vec!["desc", "0x290281ff927b69286c0137e2ff66c6e561f721d2e6a2e9b92402d2eed7aebdca99005c70a8796f3650bf99d094f7004f27849bf712ce7a032425ce13b8e334ff834b084f3a7ead9eb04520912a1018c26d3c49519f6d70c7fa4f799fa33b007854efd40f00a5030400ffa6158c2b928d5d495922366ad9b4339a023366b322fb22f4db12751e0ea93f5ca10f"].into_iter().map(Into::into).collect(),
+                    output: vec![r#"{
   "result": {
     "signature": {
       "sender": "0xff927b69286c0137e2ff66c6e561f721d2e6a2e9b92402d2eed7aebdca99005c70",
@@ -758,13 +825,13 @@ mod cases {
     }
   }
 }"#].into_iter().map(Into::into).collect(),
-					is_example: true,
-					is_test: true,
-					since: "0.1.0".to_string(),
-				}, Case {
-					desc: "Compose tx".to_string(),
-					input: vec!["compose", "-r", "http://localhost:9033", "-k", "keystore.dat", "-c", r#"'{ "module":4, "method":0, "params":{"dest":"0xffa6158c2b928d5d495922366ad9b4339a023366b322fb22f4db12751e0ea93f5c","value":1000}}'"#].into_iter().map(Into::into).collect(),
-					output: vec![r#"{
+                    is_example: true,
+                    is_test: true,
+                    since: "0.1.0".to_string(),
+                }, Case {
+                    desc: "Compose tx".to_string(),
+                    input: vec!["compose", "-r", "http://localhost:9033", "-k", "keystore.dat", "-c", r#"'{ "module":4, "method":0, "params":{"dest":"0xffa6158c2b928d5d495922366ad9b4339a023366b322fb22f4db12751e0ea93f5c","value":1000}}'"#].into_iter().map(Into::into).collect(),
+                    output: vec![r#"{
   "result": {
     "shard_num": 0,
     "shard_count": 4,
@@ -777,13 +844,24 @@ mod cases {
     "raw": "0x290281ff927b69286c0137e2ff66c6e561f721d2e6a2e9b92402d2eed7aebdca99005c706a16d3939a69e025592d997e68073a60008503d2d7251092b5e13e7b44f9367bf47c8f307624f10f348ca96a39cec64701c399518f82b43804e01cdf876c5c0708d5020400ffa6158c2b928d5d495922366ad9b4339a023366b322fb22f4db12751e0ea93f5ca10f"
   }
 }"#].into_iter().map(Into::into).collect(),
-					is_example: true,
-					is_test: false,
-					since: "0.1.0".to_string(),
-				}, Case {
-					desc: "Search tx".to_string(),
-					input: vec!["search", "-r", "http://localhost:9033", "--hash", "0x6624c259102365d2c4fe036ff4cfc5ef502a4c527b3bcb81080da2d07cbe5505"].into_iter().map(Into::into).collect(),
-					output: vec![r#"{
+                    is_example: true,
+                    is_test: false,
+                    since: "0.1.0".to_string(),
+                },
+                     Case {
+                         desc: "Submit tx".to_string(),
+                         input: vec!["submit", "-r", "http://localhost:9033", "0x310281ff927b69286c0137e2ff66c6e561f721d2e6a2e9b92402d2eed7aebdca99005c70a669fea60899f954d36146355528c0a24f8e6a7d2d04fe78384e4c5f9e0b8231560fbb54b967e0c868f23c3f9d141641b064688b0683d56741af6908b9fbeb012045010400ff94d988b42d96dcbd6605ff47f19c6ab35f626eb1bc8bbd28f59a74997a253a3d0284d717"].into_iter().map(Into::into).collect(),
+                         output: vec![r#"{
+  "result": "0x7ccbbd54aa554053ad7f9a45e40abe53baaba8795317a71e308b0a2f761eb431"
+}"#].into_iter().map(Into::into).collect(),
+                         is_example: true,
+                         is_test: false,
+                         since: "0.1.0".to_string(),
+                     },
+                     Case {
+                         desc: "Search tx".to_string(),
+                         input: vec!["search", "-r", "http://localhost:9033", "--hash", "0x6624c259102365d2c4fe036ff4cfc5ef502a4c527b3bcb81080da2d07cbe5505"].into_iter().map(Into::into).collect(),
+                         output: vec![r#"{
   "result": [
     {
       "hash": "0x6624c259102365d2c4fe036ff4cfc5ef502a4c527b3bcb81080da2d07cbe5505",
@@ -813,12 +891,12 @@ mod cases {
     }
   ]
 }"#].into_iter().map(Into::into).collect(),
-					is_example: true,
-					is_test: false,
-					since: "0.1.0".to_string(),
-				}],
-			)
-		].into_iter().collect()
+                         is_example: true,
+                         is_test: false,
+                         since: "0.1.0".to_string(),
+                     }],
+            )
+        ].into_iter().collect()
 	}
 }
 
