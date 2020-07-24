@@ -1,8 +1,12 @@
+use std::cmp::min;
+use std::str::FromStr;
+
 use clap::{Arg, ArgMatches, SubCommand};
 use num_bigint::BigUint;
 use num_traits::cast::ToPrimitive;
-use parity_codec::{Codec, Decode, Encode, KeyedVec};
+use parity_codec::{Codec, Compact, Decode, Encode, KeyedVec};
 use serde::Serialize;
+use serde_json::Value;
 use substrate_primitives::blake2_256;
 use substrate_primitives::storage::{StorageData, StorageKey};
 use tokio::runtime::Runtime;
@@ -96,6 +100,60 @@ fn sub_commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
 				),
 			f: compose,
 		},
+		Command {
+			app: SubCommand::with_name("search")
+				.about("Search tx")
+				.arg(
+					Arg::with_name("RPC")
+						.long("rpc")
+						.short("r")
+						.help("RPC address")
+						.takes_value(true)
+						.required(true),
+				)
+				.arg(
+					Arg::with_name("HASH")
+						.long("hash")
+						.help("TX hash")
+						.takes_value(true)
+						.required(false),
+				)
+				.arg(
+					Arg::with_name("RAW")
+						.long("raw")
+						.help("TX raw")
+						.takes_value(true)
+						.required(false),
+				)
+				.arg(
+					Arg::with_name("SENDER")
+						.long("sender")
+						.help("TX sender")
+						.takes_value(true)
+						.required(false),
+				)
+				.arg(
+					Arg::with_name("FROM_BLOCK_NUMBER")
+						.long("from")
+						.help("From block number: (numeric or pending, waiting)")
+						.takes_value(true)
+						.required(false),
+				)
+				.arg(
+					Arg::with_name("TO_BLOCK_NUMBER")
+						.long("to")
+						.help("To block number: (numeric or pending, waiting)")
+						.takes_value(true)
+						.required(false),
+				)
+				.arg(
+					Arg::with_name("INCLUDE_INHERENT")
+						.long("include-inherent")
+						.help("Whether include inherent")
+						.required(false),
+				),
+			f: search,
+		},
 	]
 }
 
@@ -105,52 +163,6 @@ fn desc(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	let input: Vec<u8> = input.parse::<Hex>().map_err(|_| "Convert failed")?.into();
 
 	let tx: Transaction = Decode::decode(&mut &input[..]).ok_or("invalid tx")?;
-
-	#[derive(Serialize)]
-	struct SerdeSignature {
-		pub sender: Hex,
-		pub signature: Hex,
-		pub nonce: u64,
-		pub era: SerdeEra,
-	}
-
-	#[derive(Serialize)]
-	struct SerdeTransaction {
-		pub signature: Option<SerdeSignature>,
-		pub call: Call,
-	}
-
-	#[derive(Serialize)]
-	pub enum SerdeEra {
-		Immortal,
-		Mortal(u64, u64),
-	}
-
-	impl From<Era> for SerdeEra {
-		fn from(t: Era) -> Self {
-			match t {
-				Era::Immortal => Self::Immortal,
-				Era::Mortal(period, phase) => Self::Mortal(period, phase),
-			}
-		}
-	}
-
-	impl From<Transaction> for SerdeTransaction {
-		fn from(t: Transaction) -> Self {
-			let signature = t
-				.signature
-				.map(|(address, sig, nonce, era)| SerdeSignature {
-					sender: address.0.to_vec().into(),
-					signature: sig.to_vec().into(),
-					nonce: nonce.0,
-					era: era.into(),
-				});
-			Self {
-				signature,
-				call: t.call,
-			}
-		}
-	}
 
 	let tx: SerdeTransaction = tx.into();
 
@@ -248,12 +260,439 @@ fn compose(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	base::output(result)
 }
 
+fn search(matches: &ArgMatches) -> Result<Vec<String>, String> {
+	let rpc = matches.value_of("RPC").expect("qed");
+
+	let (best_number, _, _) = get_best_block_info(rpc)?;
+
+	let expected_hash: Option<Vec<u8>> = match matches.value_of("HASH") {
+		Some(v) => {
+			let tmp = Hex::from_str(v)?;
+			Some(tmp.into())
+		}
+		None => None,
+	};
+
+	let expected_raw: Option<Vec<u8>> = match matches.value_of("RAW") {
+		Some(v) => {
+			let tmp = Hex::from_str(v)?;
+			Some(tmp.into())
+		}
+		None => None,
+	};
+
+	let expected_sender: Option<Vec<u8>> = match matches.value_of("SENDER") {
+		Some(v) => {
+			let tmp = Hex::from_str(v)?;
+			Some(tmp.into())
+		}
+		None => None,
+	};
+
+	let include_inherent: bool = matches.is_present("INCLUDE_INHERENT");
+
+	let from: BlockNumber = match matches.value_of("FROM_BLOCK_NUMBER") {
+		Some(v) => match v {
+			"waiting" => BlockNumber::Waiting,
+			"pending" => BlockNumber::Pending,
+			n => {
+				let tmp = n.parse::<u64>().map_err(|_| "Invalid from block number")?;
+				BlockNumber::Number(tmp)
+			}
+		},
+		None => BlockNumber::Number(best_number - 20),
+	};
+
+	let to: BlockNumber = match matches.value_of("TO_BLOCK_NUMBER") {
+		Some(v) => match v {
+			"waiting" => BlockNumber::Waiting,
+			"pending" => BlockNumber::Pending,
+			n => {
+				let tmp = n.parse::<u64>().map_err(|_| "Invalid to block number")?;
+				BlockNumber::Number(tmp)
+			}
+		},
+		None => BlockNumber::Waiting,
+	};
+
+	let search_in_waiting = match (from, to) {
+		(BlockNumber::Number(_), BlockNumber::Waiting) => true,
+		(BlockNumber::Pending, BlockNumber::Waiting) => true,
+		(BlockNumber::Waiting, BlockNumber::Waiting) => true,
+		_ => false,
+	};
+
+	let search_in_pending = match (from, to) {
+		(BlockNumber::Number(_), BlockNumber::Waiting) => true,
+		(BlockNumber::Number(_), BlockNumber::Pending) => true,
+		(BlockNumber::Pending, BlockNumber::Waiting) => true,
+		(BlockNumber::Pending, BlockNumber::Pending) => true,
+		_ => false,
+	};
+
+	let number_range = match (from, to) {
+		(BlockNumber::Number(from), BlockNumber::Waiting) => Some((from, best_number)),
+		(BlockNumber::Number(from), BlockNumber::Pending) => Some((from, best_number)),
+		(BlockNumber::Number(from), BlockNumber::Number(to)) => {
+			let to = min(to, best_number);
+			if from <= to {
+				Some((from, to))
+			} else {
+				None
+			}
+		}
+		_ => None,
+	};
+
+	let mut items = vec![];
+
+	let build_search_item = |raw: Vec<u8>, block: SearchItemBlock| -> Result<SearchItem, String> {
+		let tx: Transaction = Decode::decode(&mut &raw[..]).ok_or("invalid tx")?;
+		let hash = blake2_256(&raw).to_vec();
+		let item = SearchItem {
+			hash,
+			raw,
+			tx,
+			block,
+		};
+		Ok(item)
+	};
+
+	// append in block
+	if let Some((from, to)) = number_range {
+		for i in from..(to + 1) {
+			let (extrinsics, block_hash) = get_block_extrinsics(rpc, i)?;
+			for (index, raw) in extrinsics.into_iter().enumerate() {
+				let block = SearchItemBlock::Number {
+					number: i,
+					hash: block_hash.clone(),
+					index: index as u32,
+				};
+				let item = build_search_item(raw, block)?;
+				let accept = accept_item(
+					&item,
+					expected_hash.as_ref(),
+					expected_raw.as_ref(),
+					expected_sender.as_ref(),
+					include_inherent,
+				);
+
+				if accept {
+					items.push(item);
+				}
+			}
+		}
+	}
+
+	// append in pending
+	if search_in_pending {
+		let extrinsics = get_pending_extrinsics(rpc)?;
+		for raw in extrinsics {
+			let item = build_search_item(raw, SearchItemBlock::Pending)?;
+			let accept = accept_item(
+				&item,
+				expected_hash.as_ref(),
+				expected_raw.as_ref(),
+				expected_sender.as_ref(),
+				include_inherent,
+			);
+
+			if accept {
+				items.push(item);
+			}
+		}
+	}
+
+	// append in waiting
+	if search_in_waiting {
+		let extrinsics = get_waiting_extrinsics(rpc)?;
+		for raw in extrinsics {
+			let item = build_search_item(raw, SearchItemBlock::Waiting)?;
+			let accept = accept_item(
+				&item,
+				expected_hash.as_ref(),
+				expected_raw.as_ref(),
+				expected_sender.as_ref(),
+				include_inherent,
+			);
+
+			if accept {
+				items.push(item);
+			}
+		}
+	}
+
+	let result = items
+		.into_iter()
+		.map(Into::into)
+		.collect::<Vec<SerdeSearchItem>>();
+
+	base::output(&result)
+}
+
+struct SearchItem {
+	hash: Vec<u8>,
+	raw: Vec<u8>,
+	tx: Transaction,
+	block: SearchItemBlock,
+}
+
+enum SearchItemBlock {
+	Number {
+		number: u64,
+		hash: Vec<u8>,
+		index: u32,
+	},
+	Pending,
+	Waiting,
+}
+
+#[derive(Serialize)]
+struct SerdeSearchItem {
+	hash: Hex,
+	raw: Hex,
+	tx: SerdeTransaction,
+	block: SerdeSearchItemBlock,
+}
+
+#[derive(Serialize)]
+enum SerdeSearchItemBlock {
+	Number { number: u64, hash: Hex, index: u32 },
+	Pending,
+	Waiting,
+}
+
+impl From<SearchItem> for SerdeSearchItem {
+	fn from(t: SearchItem) -> Self {
+		SerdeSearchItem {
+			hash: t.hash.into(),
+			raw: t.raw.into(),
+			tx: t.tx.into(),
+			block: t.block.into(),
+		}
+	}
+}
+
+impl From<SearchItemBlock> for SerdeSearchItemBlock {
+	fn from(t: SearchItemBlock) -> Self {
+		match t {
+			SearchItemBlock::Number {
+				number,
+				hash,
+				index,
+			} => SerdeSearchItemBlock::Number {
+				number,
+				hash: hash.into(),
+				index,
+			},
+			SearchItemBlock::Pending => SerdeSearchItemBlock::Pending,
+			SearchItemBlock::Waiting => SerdeSearchItemBlock::Waiting,
+		}
+	}
+}
+
+#[derive(Serialize, Debug, Copy, Clone)]
+enum BlockNumber {
+	Number(u64),
+	Pending,
+	Waiting,
+}
+
+#[derive(Serialize)]
+struct SerdeSignature {
+	pub sender: Hex,
+	pub signature: Hex,
+	pub nonce: u64,
+	pub era: SerdeEra,
+}
+
+#[derive(Serialize)]
+struct SerdeTransaction {
+	pub signature: Option<SerdeSignature>,
+	pub call: Call,
+}
+
+#[derive(Serialize)]
+pub enum SerdeEra {
+	Immortal,
+	Mortal(u64, u64),
+}
+
+impl From<Era> for SerdeEra {
+	fn from(t: Era) -> Self {
+		match t {
+			Era::Immortal => Self::Immortal,
+			Era::Mortal(period, phase) => Self::Mortal(period, phase),
+		}
+	}
+}
+
+impl From<Transaction> for SerdeTransaction {
+	fn from(t: Transaction) -> Self {
+		let signature = t
+			.signature
+			.map(|(address, sig, nonce, era)| SerdeSignature {
+				sender: address.0.to_vec().into(),
+				signature: sig.to_vec().into(),
+				nonce: nonce.0,
+				era: era.into(),
+			});
+		Self {
+			signature,
+			call: t.call,
+		}
+	}
+}
+
+fn accept_item(
+	item: &SearchItem,
+	expected_hash: Option<&Vec<u8>>,
+	expected_raw: Option<&Vec<u8>>,
+	expected_sender: Option<&Vec<u8>>,
+	include_inherent: bool,
+) -> bool {
+	if let Some(expected_) = expected_hash {
+		if expected_ != &item.hash {
+			return false;
+		}
+	}
+
+	if let Some(expected_raw) = expected_raw {
+		if expected_raw != &item.raw {
+			return false;
+		}
+	}
+
+	if let Some(expected_sender) = expected_sender {
+		let tx_sender = item
+			.tx
+			.signature
+			.as_ref()
+			.map(|(address, _, _, _)| address.0.to_vec());
+		if Some(expected_sender) != tx_sender.as_ref() {
+			return false;
+		}
+	}
+
+	if !include_inherent {
+		let no_sig = item.tx.signature.is_none();
+		let is_relay_tx = match item.tx.call {
+			Call::Relay(_) => true,
+			_ => false,
+		};
+		if no_sig && !is_relay_tx {
+			return false;
+		}
+	}
+
+	true
+}
+
 fn get_best_block_info(rpc: &str) -> Result<(u64, String, Option<(u16, u16)>), String> {
 	let mut runtime = Runtime::new().expect("qed");
 
 	let block_info = runtime.block_on(crate::modules::meter::get_block_info(None, rpc))?;
 
 	Ok((block_info.0, block_info.1, block_info.2))
+}
+
+fn get_block_extrinsics(rpc: &str, number: u64) -> Result<(Vec<Vec<u8>>, Vec<u8>), String> {
+	let mut runtime = Runtime::new().expect("qed");
+	let block_hash = runtime
+		.block_on(base::rpc_call::<_, String>(
+			rpc,
+			"chain_getBlockHash",
+			&(number,),
+		))?
+		.result;
+
+	let block_hash = block_hash.ok_or(format!("Block number not found: {}", number))?;
+
+	let block = runtime
+		.block_on(base::rpc_call::<_, Value>(
+			rpc,
+			"chain_getBlock",
+			&(&block_hash,),
+		))?
+		.result;
+
+	let block: Value = block.ok_or(format!("Block hash not found: {}", block_hash))?;
+
+	let block = block
+		.as_object()
+		.ok_or("Decode block failed")?
+		.get("block")
+		.ok_or("Decode block failed")?;
+	let extrinsics = block
+		.as_object()
+		.ok_or("Decode block failed")?
+		.get("extrinsics")
+		.ok_or("Decode block failed")?;
+	let extrinsics = extrinsics
+		.as_array()
+		.ok_or("Decode block failed")?
+		.into_iter()
+		.map(|x| {
+			let x = x.as_str().ok_or("Decode block failed".to_string())?;
+			let x = Hex::from_str(x)?;
+			let mut x: Vec<u8> = x.into();
+			let mut length_prefix: Vec<u8> = Compact(x.len() as u32).encode();
+			length_prefix.append(&mut x);
+			Ok(length_prefix)
+		})
+		.collect::<Result<Vec<Vec<u8>>, String>>()?;
+
+	let block_hash: Vec<u8> = Hex::from_str(&block_hash)?.into();
+
+	Ok((extrinsics, block_hash))
+}
+
+fn get_pending_extrinsics(rpc: &str) -> Result<Vec<Vec<u8>>, String> {
+	let mut runtime = Runtime::new().expect("qed");
+	let result = runtime
+		.block_on(base::rpc_call::<_, Vec<String>>(
+			rpc,
+			"author_pendingExtrinsics",
+			&(),
+		))?
+		.result;
+
+	let result = result.ok_or(format!("Get pending extrinsics failed"))?;
+
+	let result = result
+		.into_iter()
+		.map(|x| {
+			let x = Hex::from_str(&x)?;
+			let x: Vec<u8> = x.into();
+			Ok(x)
+		})
+		.collect::<Result<Vec<_>, String>>()?;
+
+	Ok(result)
+}
+
+fn get_waiting_extrinsics(rpc: &str) -> Result<Vec<Vec<u8>>, String> {
+	let mut runtime = Runtime::new().expect("qed");
+	let result = runtime
+		.block_on(base::rpc_call::<_, Vec<String>>(
+			rpc,
+			"author_waitingExtrinsics",
+			&(),
+		))?
+		.result;
+
+	let result = result.ok_or(format!("Get waiting extrinsics failed"))?;
+
+	let result = result
+		.into_iter()
+		.map(|x| {
+			let x = Hex::from_str(&x)?;
+			let x: Vec<u8> = x.into();
+			Ok(x)
+		})
+		.collect::<Result<Vec<_>, String>>()?;
+
+	Ok(result)
 }
 
 fn get_nonce(public_key: [u8; PUBLIC_KEY_LEN], rpc: &str) -> Result<u64, String> {
@@ -324,7 +763,7 @@ mod cases {
 					since: "0.1.0".to_string(),
 				}, Case {
 					desc: "Compose tx".to_string(),
-					input: vec!["compose",  "-r", "http://localhost:9033", "-k", "keystore.dat", "-c", r#"'{ "module":4, "method":0, "params":{"dest":"0xffa6158c2b928d5d495922366ad9b4339a023366b322fb22f4db12751e0ea93f5c","value":1000}}'"#].into_iter().map(Into::into).collect(),
+					input: vec!["compose", "-r", "http://localhost:9033", "-k", "keystore.dat", "-c", r#"'{ "module":4, "method":0, "params":{"dest":"0xffa6158c2b928d5d495922366ad9b4339a023366b322fb22f4db12751e0ea93f5c","value":1000}}'"#].into_iter().map(Into::into).collect(),
 					output: vec![r#"{
   "result": {
     "shard_num": 0,
@@ -337,6 +776,42 @@ mod cases {
     "current_hash": "0x000004c65b2e9240dd85ddb101aef17d0cf2c2fdbe133ad9b44e870b445292d0",
     "raw": "0x290281ff927b69286c0137e2ff66c6e561f721d2e6a2e9b92402d2eed7aebdca99005c706a16d3939a69e025592d997e68073a60008503d2d7251092b5e13e7b44f9367bf47c8f307624f10f348ca96a39cec64701c399518f82b43804e01cdf876c5c0708d5020400ffa6158c2b928d5d495922366ad9b4339a023366b322fb22f4db12751e0ea93f5ca10f"
   }
+}"#].into_iter().map(Into::into).collect(),
+					is_example: true,
+					is_test: false,
+					since: "0.1.0".to_string(),
+				}, Case {
+					desc: "Search tx".to_string(),
+					input: vec!["search", "-r", "http://localhost:9033", "--hash", "0x6624c259102365d2c4fe036ff4cfc5ef502a4c527b3bcb81080da2d07cbe5505"].into_iter().map(Into::into).collect(),
+					output: vec![r#"{
+  "result": [
+    {
+      "hash": "0x6624c259102365d2c4fe036ff4cfc5ef502a4c527b3bcb81080da2d07cbe5505",
+      "raw": "0x310281ff927b69286c0137e2ff66c6e561f721d2e6a2e9b92402d2eed7aebdca99005c7060fa8e30e8557017708501bdf04bd86677d89adc73f2ddf4f51e9dabe10f9243a8983c779d6a69fb240d0e2ec7f5c342b3603a2301b0637aaf6f7517eb8c15020c55020400ff94d988b42d96dcbd6605ff47f19c6ab35f626eb1bc8bbd28f59a74997a253a3d0284d717",
+      "tx": {
+        "signature": {
+          "sender": "0xff927b69286c0137e2ff66c6e561f721d2e6a2e9b92402d2eed7aebdca99005c70",
+          "signature": "0x60fa8e30e8557017708501bdf04bd86677d89adc73f2ddf4f51e9dabe10f9243a8983c779d6a69fb240d0e2ec7f5c342b3603a2301b0637aaf6f7517eb8c1502",
+          "nonce": 3,
+          "era": {
+            "Mortal": [
+              64,
+              37
+            ]
+          }
+        },
+        "call": {
+          "module": 4,
+          "method": 0,
+          "params": {
+            "dest": "0xff94d988b42d96dcbd6605ff47f19c6ab35f626eb1bc8bbd28f59a74997a253a3d",
+            "value": 100000000
+          }
+        }
+      },
+      "block_number": "Waiting"
+    }
+  ]
 }"#].into_iter().map(Into::into).collect(),
 					is_example: true,
 					is_test: false,

@@ -5776,13 +5776,13 @@ dependencies = [
 
 [[package]]
 name = "yee-signer"
-version = "0.2.0"
-source = "git+https://github.com/yeeco/yee-signer?tag=v0.2.0#cf4b20cee4cbbe7e83bedddf7658b87c432e528b"
+version = "0.2.1"
+source = "git+https://github.com/yeeco/yee-signer?tag=v0.2.1#797beee9f3ff0ae48c54a4e2edbb7f5f0f77f12c"
 dependencies = [
+ "blake2-rfc",
  "impl-serde 0.1.1",
  "jni",
  "parity-codec",
- "rust-crypto",
  "schnorrkel",
  "serde",
  "serde_derive",
