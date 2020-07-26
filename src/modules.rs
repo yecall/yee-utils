@@ -9,6 +9,7 @@ mod completion;
 mod keystore;
 mod meter;
 mod tx;
+mod state;
 mod usage;
 
 #[derive(Clone)]
@@ -50,6 +51,7 @@ impl<'a, 'b> ModuleManager<'a, 'b> {
 		mm.register(meter::module());
 		mm.register(tx::module());
 		mm.register(authority::module());
+		mm.register(state::module());
 		mm
 	}
 

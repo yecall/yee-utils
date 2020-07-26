@@ -4,24 +4,25 @@ use std::str::FromStr;
 use clap::{Arg, ArgMatches, SubCommand};
 use num_bigint::BigUint;
 use num_traits::cast::ToPrimitive;
+use parity_codec::{Compact, Decode, Encode};
 use parity_codec::alloc::borrow::Cow;
-use parity_codec::{Codec, Compact, Decode, Encode, KeyedVec};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use substrate_primitives::blake2_256;
-use substrate_primitives::storage::{StorageData, StorageKey};
+use substrate_primitives::storage::StorageData;
 use tokio::runtime::Runtime;
 use yee_primitives::AddressCodec;
 use yee_primitives::Hrp;
 use yee_sharding_primitives::utils;
-use yee_signer::tx::call::Call;
-use yee_signer::tx::types::{Era, Transaction, HASH_LEN};
-use yee_signer::tx::{build_call, build_tx};
 use yee_signer::{KeyPair, PUBLIC_KEY_LEN, SECRET_KEY_LEN};
+use yee_signer::tx::{build_call, build_tx};
+use yee_signer::tx::call::Call;
+use yee_signer::tx::types::{Era, HASH_LEN, Transaction};
 
+use crate::modules::{base, Command, Module};
 use crate::modules::base::{Hex, RpcResponse};
 use crate::modules::keystore::get_keystore;
-use crate::modules::{base, Command, Module};
+use crate::modules::state::get_storage_key;
 
 pub fn module<'a, 'b>() -> Module<'a, 'b> {
 	Module {
@@ -780,14 +781,6 @@ fn get_nonce(public_key: [u8; PUBLIC_KEY_LEN], rpc: &str) -> Result<u64, String>
 	let nonce = nonce.to_u64().unwrap_or(0u64);
 
 	Ok(nonce)
-}
-
-fn get_storage_key<T>(key: &T, prefix: &[u8]) -> StorageKey
-where
-	T: Codec,
-{
-	let a = blake2_256(&key.to_keyed_vec(prefix)).to_vec();
-	StorageKey(a)
 }
 
 mod cases {
