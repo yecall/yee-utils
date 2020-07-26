@@ -5958,6 +5958,7 @@ dependencies = [
 name = "yee-utils"
 version = "0.2.0"
 dependencies = [
+ "byteorder 1.3.4",
  "chrono",
  "clap",
  "escaper",
@@ -5985,6 +5986,7 @@ dependencies = [
  "sss-rs",
  "substrate-primitives",
  "tokio 0.2.21",
+ "twox-hash",
  "yee-consensus-pow",
  "yee-primitives",
  "yee-runtime",
