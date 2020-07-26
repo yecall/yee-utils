@@ -18,11 +18,13 @@ use yee_signer::{KeyPair, PUBLIC_KEY_LEN, SECRET_KEY_LEN};
 use yee_signer::tx::{build_call, build_tx};
 use yee_signer::tx::call::Call;
 use yee_signer::tx::types::{Era, HASH_LEN, Transaction};
+use srml_system::{EventRecord, Phase};
+use yee_runtime::Event;
 
 use crate::modules::{base, Command, Module};
 use crate::modules::base::{Hex, RpcResponse};
 use crate::modules::keystore::get_keystore;
-use crate::modules::state::get_storage_key;
+use crate::modules::state::{get_map_storage_key_encode, get_value_storage_key};
 
 pub fn module<'a, 'b>() -> Module<'a, 'b> {
 	Module {
@@ -401,7 +403,7 @@ fn search(matches: &ArgMatches) -> Result<Vec<String>, String> {
 
 	let mut items = vec![];
 
-	let build_search_item = |raw: Vec<u8>, block: SearchItemBlock| -> Result<SearchItem, String> {
+	let build_search_item = |raw: Vec<u8>, block: SearchItemBlock, success: Option<bool>| -> Result<SearchItem, String> {
 		let tx: Transaction = Decode::decode(&mut &raw[..]).ok_or("invalid tx")?;
 		let hash = blake2_256(&raw).to_vec();
 		let item = SearchItem {
@@ -409,6 +411,7 @@ fn search(matches: &ArgMatches) -> Result<Vec<String>, String> {
 			raw,
 			tx,
 			block,
+			success,
 		};
 		Ok(item)
 	};
@@ -416,14 +419,17 @@ fn search(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	// append in block
 	if let Some((from, to)) = number_range {
 		for i in from..(to + 1) {
-			let (extrinsics, block_hash) = get_block_extrinsics(rpc, i)?;
+			let block_hash = get_block_hash(rpc, i)?;
+			let extrinsics = get_block_extrinsics(rpc, &block_hash)?;
+			let results = get_block_extrinsics_result(rpc, &block_hash)?;
 			for (index, raw) in extrinsics.into_iter().enumerate() {
 				let block = SearchItemBlock::Number {
 					number: i,
 					hash: block_hash.clone(),
 					index: index as u32,
 				};
-				let item = build_search_item(raw, block)?;
+				let success = results.get(index).cloned();
+				let item = build_search_item(raw, block, success)?;
 				let accept = accept_item(
 					&item,
 					expected_hash.as_ref(),
@@ -443,7 +449,7 @@ fn search(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	if search_in_pending {
 		let extrinsics = get_pending_extrinsics(rpc)?;
 		for raw in extrinsics {
-			let item = build_search_item(raw, SearchItemBlock::Pending)?;
+			let item = build_search_item(raw, SearchItemBlock::Pending, None)?;
 			let accept = accept_item(
 				&item,
 				expected_hash.as_ref(),
@@ -462,7 +468,7 @@ fn search(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	if search_in_waiting {
 		let extrinsics = get_waiting_extrinsics(rpc)?;
 		for raw in extrinsics {
-			let item = build_search_item(raw, SearchItemBlock::Waiting)?;
+			let item = build_search_item(raw, SearchItemBlock::Waiting, None)?;
 			let accept = accept_item(
 				&item,
 				expected_hash.as_ref(),
@@ -503,6 +509,7 @@ struct SearchItem {
 	raw: Vec<u8>,
 	tx: Transaction,
 	block: SearchItemBlock,
+	success: Option<bool>,
 }
 
 enum SearchItemBlock {
@@ -521,6 +528,7 @@ struct SerdeSearchItem {
 	raw: Hex,
 	tx: SerdeTransaction,
 	block: SerdeSearchItemBlock,
+	success: Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -537,6 +545,7 @@ impl From<SearchItem> for SerdeSearchItem {
 			raw: t.raw.into(),
 			tx: t.tx.into(),
 			block: t.block.into(),
+			success: t.success,
 		}
 	}
 }
@@ -664,7 +673,7 @@ fn get_best_block_info(rpc: &str) -> Result<(u64, String, Option<(u16, u16)>), S
 	Ok((block_info.0, block_info.1, block_info.2))
 }
 
-fn get_block_extrinsics(rpc: &str, number: u64) -> Result<(Vec<Vec<u8>>, Vec<u8>), String> {
+fn get_block_hash(rpc: &str, number: u64) -> Result<Vec<u8>, String> {
 	let mut runtime = Runtime::new().expect("qed");
 	let block_hash = runtime
 		.block_on(base::rpc_call::<_, String>(
@@ -675,6 +684,17 @@ fn get_block_extrinsics(rpc: &str, number: u64) -> Result<(Vec<Vec<u8>>, Vec<u8>
 		.result;
 
 	let block_hash = block_hash.ok_or(format!("Block number not found: {}", number))?;
+
+	let block_hash: Vec<u8> = Hex::from_str(&block_hash)?.into();
+
+	Ok(block_hash)
+}
+
+fn get_block_extrinsics(rpc: &str, block_hash: &[u8]) -> Result<Vec<Vec<u8>>, String> {
+	let mut runtime = Runtime::new().expect("qed");
+
+	let block_hash : Hex = block_hash.to_vec().into();
+	let block_hash : String = block_hash.into();
 
 	let block = runtime
 		.block_on(base::rpc_call::<_, Value>(
@@ -710,9 +730,48 @@ fn get_block_extrinsics(rpc: &str, number: u64) -> Result<(Vec<Vec<u8>>, Vec<u8>
 		})
 		.collect::<Result<Vec<Vec<u8>>, String>>()?;
 
-	let block_hash: Vec<u8> = Hex::from_str(&block_hash)?.into();
+	Ok(extrinsics)
+}
 
-	Ok((extrinsics, block_hash))
+fn get_block_extrinsics_result(rpc: &str, block_hash: &[u8]) -> Result<Vec<bool>, String> {
+	let mut runtime = Runtime::new().expect("qed");
+
+	let block_hash : Hex = block_hash.to_vec().into();
+	let block_hash : String = block_hash.into();
+
+	let events_storage_key = get_value_storage_key(b"System Events");
+
+	let events = runtime
+		.block_on(base::rpc_call::<_, String>(
+			rpc,
+			"state_getStorage",
+			&(&events_storage_key, &block_hash),
+		))?
+		.result;
+
+	let events : String = events.ok_or(format!("Block events not found: {}", block_hash))?;
+	let events = Hex::from_str(&events)?;
+	let events : Vec<u8> = events.into();
+	let events: Vec<EventRecord<Event>> = Decode::decode(&mut &events[..]).ok_or("Decode event record failed")?;
+
+	let result = events.into_iter().filter_map(|x|{
+		match x.phase{
+			Phase::ApplyExtrinsic(_index) => {
+				match x.event {
+					Event::system(event) => {
+						match event {
+							srml_system::Event::ExtrinsicSuccess => Some(true),
+							srml_system::Event::ExtrinsicFailed => Some(false),
+						}
+					},
+					_ => None,
+				}
+			},
+			_ => None,
+		}
+	}).collect::<Vec<_>>();
+
+	Ok(result)
 }
 
 fn get_pending_extrinsics(rpc: &str) -> Result<Vec<Vec<u8>>, String> {
@@ -764,7 +823,7 @@ fn get_waiting_extrinsics(rpc: &str) -> Result<Vec<Vec<u8>>, String> {
 }
 
 fn get_nonce(public_key: [u8; PUBLIC_KEY_LEN], rpc: &str) -> Result<u64, String> {
-	let nonce_key = get_storage_key(&public_key, b"System AccountNonce");
+	let nonce_key = get_map_storage_key_encode(&public_key, b"System AccountNonce");
 
 	let params = (nonce_key,);
 

@@ -105,7 +105,7 @@ fn value(matches: &ArgMatches) -> Result<Vec<String>, String> {
 
     let key = key.as_bytes();
 
-    let storage_key = StorageKey(twox_128(key)?);
+    let storage_key = get_value_storage_key(key);
 
     let data = get_storage(rpc, storage_key)?;
 
@@ -138,7 +138,7 @@ fn map(matches: &ArgMatches) -> Result<Vec<String>, String> {
     let prefix = prefix.as_bytes().to_vec();
     let key: Vec<u8> = Hex::from_str(key)?.into();
 
-    let storage_key = get_vec_storage_key(&key, &prefix);
+    let storage_key = get_map_storage_key(&key, &prefix);
 
     let data = get_storage(rpc, storage_key)?;
 
@@ -147,7 +147,11 @@ fn map(matches: &ArgMatches) -> Result<Vec<String>, String> {
     base::output(&data)
 }
 
-pub fn get_vec_storage_key(key: &[u8], prefix: &[u8]) -> StorageKey
+pub fn get_value_storage_key(key: &[u8]) -> StorageKey {
+    StorageKey(twox_128(key))
+}
+
+pub fn get_map_storage_key(key: &[u8], prefix: &[u8]) -> StorageKey
 {
     let mut prefix = prefix.to_vec();
     prefix.extend(key);
@@ -155,7 +159,7 @@ pub fn get_vec_storage_key(key: &[u8], prefix: &[u8]) -> StorageKey
     StorageKey(a)
 }
 
-pub fn get_storage_key<T>(key: &T, prefix: &[u8]) -> StorageKey
+pub fn get_map_storage_key_encode<T>(key: &T, prefix: &[u8]) -> StorageKey
     where
         T: Codec,
 {
@@ -163,16 +167,16 @@ pub fn get_storage_key<T>(key: &T, prefix: &[u8]) -> StorageKey
     StorageKey(a)
 }
 
-fn twox_128(data: &[u8]) -> Result<Vec<u8>, String> {
-    let hash0 = twox(data, 0)?;
-    let hash1 = twox(data, 1)?;
+fn twox_128(data: &[u8]) -> Vec<u8> {
+    let hash0 = twox(data, 0);
+    let hash1 = twox(data, 1);
     let mut result = vec![0u8; 16];
     result[0..8].copy_from_slice(&hash0);
     result[8..16].copy_from_slice(&hash1);
-    Ok(result)
+    result
 }
 
-fn twox(data: &[u8], seed: u64) -> Result<Vec<u8>, String> {
+fn twox(data: &[u8], seed: u64) -> Vec<u8> {
     use ::core::hash::Hasher;
     let mut h = twox_hash::XxHash::with_seed(seed);
     h.write(&data);
@@ -180,7 +184,7 @@ fn twox(data: &[u8], seed: u64) -> Result<Vec<u8>, String> {
     use byteorder::{ByteOrder, LittleEndian};
     let mut dest = vec![0u8; 8];
     LittleEndian::write_u64(&mut dest[0..8], r);
-    Ok(dest)
+    dest
 }
 
 mod cases {

@@ -42,3 +42,4 @@ yee-sharding-primitives = { git = "https://github.com/yeeco/yeeroot", branch = "
 runtime-primitives = { package = "sr-primitives", git = "https://github.com/yeeco/substrate.git", branch = "yee-v1.0" }
 substrate-primitives =  { package = "substrate-primitives", git = "https://github.com/yeeco/substrate.git", branch = "yee-v1.0" }
 srml-support = { package = "srml-support", git = "https://github.com/yeeco/substrate.git", branch = "yee-v1.0" }
+srml-system = { package = "srml-system", git = "https://github.com/yeeco/substrate.git", branch = "yee-v1.0" }
