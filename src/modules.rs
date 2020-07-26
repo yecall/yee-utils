@@ -47,10 +47,10 @@ impl<'a, 'b> ModuleManager<'a, 'b> {
 			commands: LinkedHashMap::new(),
 		};
 		mm.register(account::module());
+		mm.register(authority::module());
 		mm.register(keystore::module());
 		mm.register(meter::module());
 		mm.register(tx::module());
-		mm.register(authority::module());
 		mm.register(state::module());
 		mm
 	}
