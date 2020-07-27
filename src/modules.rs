@@ -6,10 +6,11 @@ mod account;
 mod authority;
 mod base;
 mod completion;
+mod event;
 mod keystore;
 mod meter;
-mod tx;
 mod state;
+mod tx;
 mod usage;
 
 #[derive(Clone)]
@@ -51,6 +52,7 @@ impl<'a, 'b> ModuleManager<'a, 'b> {
 		mm.register(keystore::module());
 		mm.register(meter::module());
 		mm.register(tx::module());
+		mm.register(event::module());
 		mm.register(state::module());
 		mm
 	}
