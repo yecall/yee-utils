@@ -4,27 +4,28 @@ use std::str::FromStr;
 use clap::{Arg, ArgMatches, SubCommand};
 use num_bigint::BigUint;
 use num_traits::cast::ToPrimitive;
-use parity_codec::{Compact, Decode, Encode};
 use parity_codec::alloc::borrow::Cow;
+use parity_codec::alloc::collections::{hash_map::Entry, HashMap};
+use parity_codec::{Compact, Decode, Encode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use srml_system::{EventRecord, Phase};
 use substrate_primitives::blake2_256;
 use substrate_primitives::storage::StorageData;
 use tokio::runtime::Runtime;
 use yee_primitives::AddressCodec;
 use yee_primitives::Hrp;
-use yee_sharding_primitives::utils;
-use yee_signer::{KeyPair, PUBLIC_KEY_LEN, SECRET_KEY_LEN};
-use yee_signer::tx::{build_call, build_tx};
-use yee_signer::tx::call::Call;
-use yee_signer::tx::types::{Era, HASH_LEN, Transaction};
-use srml_system::{EventRecord, Phase};
 use yee_runtime::Event;
+use yee_sharding_primitives::utils;
+use yee_signer::tx::call::Call;
+use yee_signer::tx::types::{Era, Transaction, HASH_LEN};
+use yee_signer::tx::{build_call, build_tx};
+use yee_signer::{KeyPair, PUBLIC_KEY_LEN, SECRET_KEY_LEN};
 
-use crate::modules::{base, Command, Module};
 use crate::modules::base::{Hex, RpcResponse};
 use crate::modules::keystore::get_keystore;
 use crate::modules::state::{get_map_storage_key_encode, get_value_storage_key};
+use crate::modules::{base, Command, Module};
 
 pub fn module<'a, 'b>() -> Module<'a, 'b> {
 	Module {
@@ -403,7 +404,11 @@ fn search(matches: &ArgMatches) -> Result<Vec<String>, String> {
 
 	let mut items = vec![];
 
-	let build_search_item = |raw: Vec<u8>, block: SearchItemBlock, success: Option<bool>| -> Result<SearchItem, String> {
+	let build_search_item = |raw: Vec<u8>,
+	                         block: SearchItemBlock,
+	                         success: Option<bool>,
+	                         events: Option<Vec<String>>|
+	 -> Result<SearchItem, String> {
 		let tx: Transaction = Decode::decode(&mut &raw[..]).ok_or("invalid tx")?;
 		let hash = blake2_256(&raw).to_vec();
 		let item = SearchItem {
@@ -412,6 +417,7 @@ fn search(matches: &ArgMatches) -> Result<Vec<String>, String> {
 			tx,
 			block,
 			success,
+			events,
 		};
 		Ok(item)
 	};
@@ -428,8 +434,10 @@ fn search(matches: &ArgMatches) -> Result<Vec<String>, String> {
 					hash: block_hash.clone(),
 					index: index as u32,
 				};
-				let success = results.get(index).cloned();
-				let item = build_search_item(raw, block, success)?;
+				let result = results.get(&(index as u32));
+				let success = result.map(|x| x.0);
+				let events = result.map(|x| x.1.clone());
+				let item = build_search_item(raw, block, success, events)?;
 				let accept = accept_item(
 					&item,
 					expected_hash.as_ref(),
@@ -449,7 +457,7 @@ fn search(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	if search_in_pending {
 		let extrinsics = get_pending_extrinsics(rpc)?;
 		for raw in extrinsics {
-			let item = build_search_item(raw, SearchItemBlock::Pending, None)?;
+			let item = build_search_item(raw, SearchItemBlock::Pending, None, None)?;
 			let accept = accept_item(
 				&item,
 				expected_hash.as_ref(),
@@ -468,7 +476,7 @@ fn search(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	if search_in_waiting {
 		let extrinsics = get_waiting_extrinsics(rpc)?;
 		for raw in extrinsics {
-			let item = build_search_item(raw, SearchItemBlock::Waiting, None)?;
+			let item = build_search_item(raw, SearchItemBlock::Waiting, None, None)?;
 			let accept = accept_item(
 				&item,
 				expected_hash.as_ref(),
@@ -510,6 +518,7 @@ struct SearchItem {
 	tx: Transaction,
 	block: SearchItemBlock,
 	success: Option<bool>,
+	events: Option<Vec<String>>,
 }
 
 enum SearchItemBlock {
@@ -529,6 +538,7 @@ struct SerdeSearchItem {
 	tx: SerdeTransaction,
 	block: SerdeSearchItemBlock,
 	success: Option<bool>,
+	events: Option<Vec<String>>,
 }
 
 #[derive(Serialize)]
@@ -546,6 +556,7 @@ impl From<SearchItem> for SerdeSearchItem {
 			tx: t.tx.into(),
 			block: t.block.into(),
 			success: t.success,
+			events: t.events,
 		}
 	}
 }
@@ -628,8 +639,8 @@ fn accept_item(
 	expected_sender: Option<&Vec<u8>>,
 	include_inherent: bool,
 ) -> bool {
-	if let Some(expected_) = expected_hash {
-		if expected_ != &item.hash {
+	if let Some(expected_hash) = expected_hash {
+		if expected_hash != &item.hash {
 			return false;
 		}
 	}
@@ -665,7 +676,7 @@ fn accept_item(
 	true
 }
 
-fn get_best_block_info(rpc: &str) -> Result<(u64, String, Option<(u16, u16)>), String> {
+pub fn get_best_block_info(rpc: &str) -> Result<(u64, String, Option<(u16, u16)>), String> {
 	let mut runtime = Runtime::new().expect("qed");
 
 	let block_info = runtime.block_on(crate::modules::meter::get_block_info(None, rpc))?;
@@ -673,7 +684,7 @@ fn get_best_block_info(rpc: &str) -> Result<(u64, String, Option<(u16, u16)>), S
 	Ok((block_info.0, block_info.1, block_info.2))
 }
 
-fn get_block_hash(rpc: &str, number: u64) -> Result<Vec<u8>, String> {
+pub fn get_block_hash(rpc: &str, number: u64) -> Result<Vec<u8>, String> {
 	let mut runtime = Runtime::new().expect("qed");
 	let block_hash = runtime
 		.block_on(base::rpc_call::<_, String>(
@@ -693,8 +704,8 @@ fn get_block_hash(rpc: &str, number: u64) -> Result<Vec<u8>, String> {
 fn get_block_extrinsics(rpc: &str, block_hash: &[u8]) -> Result<Vec<Vec<u8>>, String> {
 	let mut runtime = Runtime::new().expect("qed");
 
-	let block_hash : Hex = block_hash.to_vec().into();
-	let block_hash : String = block_hash.into();
+	let block_hash: Hex = block_hash.to_vec().into();
+	let block_hash: String = block_hash.into();
 
 	let block = runtime
 		.block_on(base::rpc_call::<_, Value>(
@@ -733,11 +744,16 @@ fn get_block_extrinsics(rpc: &str, block_hash: &[u8]) -> Result<Vec<Vec<u8>>, St
 	Ok(extrinsics)
 }
 
-fn get_block_extrinsics_result(rpc: &str, block_hash: &[u8]) -> Result<Vec<bool>, String> {
+fn get_block_extrinsics_result(
+	rpc: &str,
+	block_hash: &[u8],
+) -> Result<HashMap<u32, (bool, Vec<String>)>, String> {
 	let mut runtime = Runtime::new().expect("qed");
 
-	let block_hash : Hex = block_hash.to_vec().into();
-	let block_hash : String = block_hash.into();
+	let mut result = HashMap::new();
+
+	let block_hash: Hex = block_hash.to_vec().into();
+	let block_hash: String = block_hash.into();
 
 	let events_storage_key = get_value_storage_key(b"System Events");
 
@@ -749,27 +765,50 @@ fn get_block_extrinsics_result(rpc: &str, block_hash: &[u8]) -> Result<Vec<bool>
 		))?
 		.result;
 
-	let events : String = events.ok_or(format!("Block events not found: {}", block_hash))?;
-	let events = Hex::from_str(&events)?;
-	let events : Vec<u8> = events.into();
-	let events: Vec<EventRecord<Event>> = Decode::decode(&mut &events[..]).ok_or("Decode event record failed")?;
+	let events: String = match events {
+		Some(events) => events,
+		None => return Ok(result),
+	};
 
-	let result = events.into_iter().filter_map(|x|{
-		match x.phase{
-			Phase::ApplyExtrinsic(_index) => {
-				match x.event {
-					Event::system(event) => {
-						match event {
-							srml_system::Event::ExtrinsicSuccess => Some(true),
-							srml_system::Event::ExtrinsicFailed => Some(false),
+	let events = Hex::from_str(&events)?;
+	let events: Vec<u8> = events.into();
+	let events: Vec<EventRecord<Event>> =
+		Decode::decode(&mut &events[..]).ok_or("Decode event record failed")?;
+
+	for event in events.into_iter() {
+		match event.phase {
+			Phase::ApplyExtrinsic(index) => match &event.event {
+				Event::system(system_event) => {
+					let success = match system_event {
+						srml_system::Event::ExtrinsicSuccess => true,
+						srml_system::Event::ExtrinsicFailed => false,
+					};
+					match result.entry(index) {
+						Entry::Vacant(entry) => {
+							entry.insert((success, vec![]));
 						}
-					},
-					_ => None,
+						Entry::Occupied(mut entry) => {
+							let entry = entry.get_mut();
+							entry.0 = success;
+						}
+					}
+				}
+				_ => {
+					let event_str = format!("{:?}", event.event);
+					match result.entry(index) {
+						Entry::Vacant(entry) => {
+							entry.insert((false, vec![event_str]));
+						}
+						Entry::Occupied(mut entry) => {
+							let entry = entry.get_mut();
+							entry.1.push(event_str);
+						}
+					}
 				}
 			},
-			_ => None,
+			_ => {}
 		}
-	}).collect::<Vec<_>>();
+	}
 
 	Ok(result)
 }
@@ -916,17 +955,17 @@ mod cases {
                          output: vec![r#"{
   "result": [
     {
-      "hash": "0x6624c259102365d2c4fe036ff4cfc5ef502a4c527b3bcb81080da2d07cbe5505",
-      "raw": "0x310281ff927b69286c0137e2ff66c6e561f721d2e6a2e9b92402d2eed7aebdca99005c7060fa8e30e8557017708501bdf04bd86677d89adc73f2ddf4f51e9dabe10f9243a8983c779d6a69fb240d0e2ec7f5c342b3603a2301b0637aaf6f7517eb8c15020c55020400ff94d988b42d96dcbd6605ff47f19c6ab35f626eb1bc8bbd28f59a74997a253a3d0284d717",
+      "hash": "0xad1eeb7f893dc1a7104d91caa0418b38ebe43880e5e79341bff50edc90aeb2bf",
+      "raw": "0x310281ff927b69286c0137e2ff66c6e561f721d2e6a2e9b92402d2eed7aebdca99005c70b4c7fd2f9484e881a8e57132412575b8978a7443ddb13b98052dfc62f2dbb35f72bc5c25e42b2be4b3125f9ab5362a1b3826df0744370e70788f8f3eb25c100c00e5030400ff94d988b42d96dcbd6605ff47f19c6ab35f626eb1bc8bbd28f59a74997a253a3d0284d717",
       "tx": {
         "signature": {
           "sender": "0xff927b69286c0137e2ff66c6e561f721d2e6a2e9b92402d2eed7aebdca99005c70",
-          "signature": "0x60fa8e30e8557017708501bdf04bd86677d89adc73f2ddf4f51e9dabe10f9243a8983c779d6a69fb240d0e2ec7f5c342b3603a2301b0637aaf6f7517eb8c1502",
-          "nonce": 3,
+          "signature": "0xb4c7fd2f9484e881a8e57132412575b8978a7443ddb13b98052dfc62f2dbb35f72bc5c25e42b2be4b3125f9ab5362a1b3826df0744370e70788f8f3eb25c100c",
+          "nonce": 0,
           "era": {
             "Mortal": [
               64,
-              37
+              62
             ]
           }
         },
@@ -939,7 +978,17 @@ mod cases {
           }
         }
       },
-      "block_number": "Waiting"
+      "block": {
+        "Number": {
+          "number": 63,
+          "hash": "0x453822219ba447ad31bc7c5499a6a09e475435f7bb9e43b885a8d38c06b50643",
+          "index": 5
+        }
+      },
+      "success": true,
+      "events": [
+        "balances(Transfer(927b69286c0137e2ff66c6e561f721d2e6a2e9b92402d2eed7aebdca99005c70 (5FNmWUUd...), 94d988b42d96dcbd6605ff47f19c6ab35f626eb1bc8bbd28f59a74997a253a3d (5FRsZjZU...), 100000000, 0))"
+      ]
     }
   ]
 }"#].into_iter().map(Into::into).collect(),
