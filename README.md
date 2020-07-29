@@ -11,6 +11,11 @@ Yee utils is a collection of commands to interact with the yee node.
  - clang
  - gcc-c++
 
+3. Build
+```
+cargo build --release
+```
+
 ## Usage
 
 [View full usage document](./docs/Usage.md)
