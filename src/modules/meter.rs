@@ -84,7 +84,9 @@ async fn get_system(rpc: &str) -> Result<System, String> {
 
 	let network_state = base::rpc_call::<_, Value>(rpc, "system_networkState", &());
 
-	let result = join_all(vec![name, version, chain, health, peers, network_state]).await;
+	let foreign_network_state = base::rpc_call::<_, Value>(rpc, "system_foreignNetworkState", &());
+
+	let result = join_all(vec![name, version, chain, health, peers, network_state, foreign_network_state]).await;
 
 	let mut result = result.into_iter().map(Some).collect::<Vec<_>>();
 
@@ -102,6 +104,7 @@ async fn get_system(rpc: &str) -> Result<System, String> {
 		health: extract(result[3].take()),
 		peers: extract(result[4].take()),
 		network_state: extract(result[5].take()),
+		foreign_network_state: extract(result[6].take()),
 	};
 
 	Ok(system)
@@ -386,6 +389,7 @@ struct System {
 	health: Option<Value>,
 	peers: Option<Value>,
 	network_state: Option<Value>,
+	foreign_network_state: Option<Value>,
 }
 
 #[derive(Debug, Serialize)]
