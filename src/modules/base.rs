@@ -56,6 +56,15 @@ pub fn output_error(s: String) -> String {
 	output
 }
 
+pub fn get_rpc(matches: &ArgMatches) -> String {
+	let rpc = matches.value_of("RPC").expect("qed");
+	let rpc = match rpc.parse::<u32>() {
+		Ok(port) => format!("http://localhost:{}", port),
+		Err(_) => format!("{}", rpc),
+	};
+	rpc
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Error {
 	code: i32,

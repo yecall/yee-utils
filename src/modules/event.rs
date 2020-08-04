@@ -7,7 +7,7 @@ use srml_system::{EventRecord, Phase};
 use tokio::runtime::Runtime;
 use yee_runtime::Event;
 
-use crate::modules::base::Hex;
+use crate::modules::base::{get_rpc, Hex};
 use crate::modules::state::get_value_storage_key;
 use crate::modules::tx::{get_best_block_info, get_block_hash};
 use crate::modules::{base, Command, Module};
@@ -73,7 +73,7 @@ fn sub_commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
 }
 
 fn search(matches: &ArgMatches) -> Result<Vec<String>, String> {
-	let rpc = matches.value_of("RPC").expect("qed");
+	let rpc = &get_rpc(matches);
 
 	let (best_number, _, _) = get_best_block_info(rpc)?;
 
