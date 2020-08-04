@@ -22,7 +22,7 @@ use yee_signer::tx::types::{Era, Transaction, HASH_LEN};
 use yee_signer::tx::{build_call, build_tx};
 use yee_signer::{KeyPair, PUBLIC_KEY_LEN, SECRET_KEY_LEN};
 
-use crate::modules::base::{Hex, RpcResponse};
+use crate::modules::base::{get_rpc, Hex, RpcResponse};
 use crate::modules::keystore::get_keystore;
 use crate::modules::meter;
 use crate::modules::state::{get_map_storage_key_encode, get_value_storage_key};
@@ -190,7 +190,7 @@ fn desc(matches: &ArgMatches) -> Result<Vec<String>, String> {
 }
 
 fn compose(matches: &ArgMatches) -> Result<Vec<String>, String> {
-	let rpc = matches.value_of("RPC").expect("qed");
+	let rpc = &get_rpc(matches);
 
 	let keystore_path = matches.value_of("KEYSTORE_PATH").expect("qed");
 
@@ -277,7 +277,7 @@ fn compose(matches: &ArgMatches) -> Result<Vec<String>, String> {
 fn submit(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	let input = base::input_string(matches)?;
 
-	let rpc = matches.value_of("RPC").expect("qed");
+	let rpc = &get_rpc(matches);
 
 	let try_get_raw_from_hex = |input: String| -> Result<String, String> {
 		let _raw = Hex::from_str(&input)?;
@@ -320,7 +320,7 @@ fn submit(matches: &ArgMatches) -> Result<Vec<String>, String> {
 }
 
 fn search(matches: &ArgMatches) -> Result<Vec<String>, String> {
-	let rpc = matches.value_of("RPC").expect("qed");
+	let rpc = &get_rpc(matches);
 
 	let (best_number, _, _) = get_best_block_info(rpc)?;
 

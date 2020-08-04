@@ -6,7 +6,7 @@ use substrate_primitives::blake2_256;
 use substrate_primitives::storage::{StorageData, StorageKey};
 use tokio::runtime::Runtime;
 
-use crate::modules::base::Hex;
+use crate::modules::base::{get_rpc, Hex};
 use crate::modules::{base, Command, Module};
 
 pub fn module<'a, 'b>() -> Module<'a, 'b> {
@@ -100,7 +100,7 @@ fn sub_commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
 }
 
 fn value(matches: &ArgMatches) -> Result<Vec<String>, String> {
-	let rpc = matches.value_of("RPC").expect("qed");
+	let rpc = &get_rpc(matches);
 	let key = matches.value_of("KEY").expect("qed");
 
 	let key = key.as_bytes();
@@ -115,7 +115,7 @@ fn value(matches: &ArgMatches) -> Result<Vec<String>, String> {
 }
 
 fn unhashed_value(matches: &ArgMatches) -> Result<Vec<String>, String> {
-	let rpc = matches.value_of("RPC").expect("qed");
+	let rpc = &get_rpc(matches);
 	let key = matches.value_of("KEY").expect("qed");
 
 	let key = key.as_bytes();
@@ -130,7 +130,7 @@ fn unhashed_value(matches: &ArgMatches) -> Result<Vec<String>, String> {
 }
 
 fn map(matches: &ArgMatches) -> Result<Vec<String>, String> {
-	let rpc = matches.value_of("RPC").expect("qed");
+	let rpc = &get_rpc(matches);
 
 	let prefix = matches.value_of("PREFIX").expect("qed");
 	let key = matches.value_of("KEY").expect("qed");
