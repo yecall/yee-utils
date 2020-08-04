@@ -51,27 +51,83 @@ fn meter(matches: &ArgMatches) -> Result<Vec<String>, String> {
 }
 
 async fn get_meter(rpc: &str) -> Meter {
-	let system = get_system(rpc);
+	let best = meter_get_best(rpc);
 
-	let runtime = get_runtime(rpc);
+	let finalized = meter_get_finalized(rpc);
 
-	let crfg = get_crfg(rpc);
+	let system = meter_get_system(rpc);
 
-	let chain = get_chain(rpc);
+	let peers = meter_get_peers(rpc);
 
-	let (system, runtime, crfg, chain) = tokio::join!(system, runtime, crfg, chain);
+	let network_state = meter_get_network_state(rpc);
+
+	let foreign_network_state = meter_get_foreign_network_state(rpc);
+
+	let runtime = meter_get_runtime(rpc);
+
+	let crfg = meter_get_crfg(rpc);
+
+	let foreign_status = meter_get_foreign_status(rpc);
+
+	let config = meter_get_config(rpc);
+
+	let (
+		best,
+		finalized,
+		system,
+		peers,
+		network_state,
+		foreign_network_state,
+		runtime,
+		crfg,
+		foreign_status,
+		config,
+	) = tokio::join!(
+		best,
+		finalized,
+		system,
+		peers,
+		network_state,
+		foreign_network_state,
+		runtime,
+		crfg,
+		foreign_status,
+		config
+	);
 
 	let meter = Meter {
-		chain: chain.ok(),
+		best: best.ok(),
+		finalized: finalized.ok(),
 		system: system.ok(),
+		peers: peers.ok(),
+		network_state: network_state.ok(),
+		foreign_network_state: foreign_network_state.ok(),
 		runtime: runtime.ok(),
 		crfg: crfg.ok(),
+		foreign_status: foreign_status.ok(),
+		config: config.ok(),
 	};
 
 	meter
 }
 
-async fn get_system(rpc: &str) -> Result<System, String> {
+async fn meter_get_best(rpc: &str) -> Result<BlockInfo, String> {
+	let info = get_block_info(Number::Best, rpc).await?;
+
+	let info = arrange_block_info(info);
+
+	Ok(info)
+}
+
+async fn meter_get_finalized(rpc: &str) -> Result<BlockInfo, String> {
+	let info = get_block_info(Number::Finalized, rpc).await?;
+
+	let info = arrange_block_info(info);
+
+	Ok(info)
+}
+
+async fn meter_get_system(rpc: &str) -> Result<System, String> {
 	let name = base::rpc_call::<_, Value>(rpc, "system_name", &());
 
 	let version = base::rpc_call::<_, Value>(rpc, "system_version", &());
@@ -80,13 +136,7 @@ async fn get_system(rpc: &str) -> Result<System, String> {
 
 	let health = base::rpc_call::<_, Value>(rpc, "system_health", &());
 
-	let peers = base::rpc_call::<_, Value>(rpc, "system_peers", &());
-
-	let network_state = base::rpc_call::<_, Value>(rpc, "system_networkState", &());
-
-	let foreign_network_state = base::rpc_call::<_, Value>(rpc, "system_foreignNetworkState", &());
-
-	let result = join_all(vec![name, version, chain, health, peers, network_state, foreign_network_state]).await;
+	let result = join_all(vec![name, version, chain, health]).await;
 
 	let mut result = result.into_iter().map(Some).collect::<Vec<_>>();
 
@@ -102,69 +152,90 @@ async fn get_system(rpc: &str) -> Result<System, String> {
 		version: extract(result[1].take()),
 		chain: extract(result[2].take()),
 		health: extract(result[3].take()),
-		peers: extract(result[4].take()),
-		network_state: extract(result[5].take()),
-		foreign_network_state: extract(result[6].take()),
 	};
 
 	Ok(system)
 }
 
-async fn get_runtime(rpc: &str) -> Result<Value, String> {
-	let runtime = base::rpc_call::<_, Value>(rpc, "state_getRuntimeVersion", &()).await;
+async fn meter_get_peers(rpc: &str) -> Result<Value, String> {
+	let result = base::rpc_call::<_, Value>(rpc, "system_peers", &())
+		.await?
+		.result;
 
-	let extract = |x: Result<base::RpcResponse<Value>, String>| -> Result<Value, String> {
-		match x {
-			Ok(x) => match x.result {
-				Some(x) => Ok(x),
-				None => Err("none error".to_string()),
-			},
-			Err(e) => Err(e),
-		}
-	};
+	let result = result.ok_or("none")?;
 
-	extract(runtime)
+	Ok(result)
 }
 
-async fn get_crfg(rpc: &str) -> Result<Value, String> {
-	let runtime = base::rpc_call::<_, Value>(rpc, "crfg_state", &()).await;
+async fn meter_get_network_state(rpc: &str) -> Result<Value, String> {
+	let result = base::rpc_call::<_, Value>(rpc, "system_networkState", &())
+		.await?
+		.result;
 
-	let extract = |x: Result<base::RpcResponse<Value>, String>| -> Result<Value, String> {
-		match x {
-			Ok(x) => match x.result {
-				Some(x) => Ok(x),
-				None => Err("".to_string()),
-			},
-			Err(e) => Err(e),
-		}
-	};
+	let result = result.ok_or("none")?;
 
-	extract(runtime)
+	Ok(result)
 }
 
-async fn get_chain(rpc: &str) -> Result<Chain, String> {
-	let best = get_block_info(None, rpc).await?;
+async fn meter_get_foreign_network_state(rpc: &str) -> Result<Value, String> {
+	let result = base::rpc_call::<_, Value>(rpc, "system_foreignNetworkState", &())
+		.await?
+		.result;
 
-	let finalized_number = best.3;
+	let result = result.ok_or("none")?;
 
-	let finalized = match finalized_number {
-		Some(n) => Some(get_block_info(Some(n), rpc).await?),
-		None => None,
-	};
+	Ok(result)
+}
 
-	let best = arrange_block_info(best);
-	let finalized = finalized.map(arrange_block_info);
+async fn meter_get_runtime(rpc: &str) -> Result<Value, String> {
+	let result = base::rpc_call::<_, Value>(rpc, "state_getRuntimeVersion", &())
+		.await?
+		.result;
 
-	let chain = Chain {
-		best: Some(best),
-		finalized,
-	};
+	let result = result.ok_or("none")?;
 
-	Ok(chain)
+	Ok(result)
+}
+
+async fn meter_get_crfg(rpc: &str) -> Result<Value, String> {
+	let result = base::rpc_call::<_, Value>(rpc, "crfg_state", &())
+		.await?
+		.result;
+
+	let result = result.ok_or("none")?;
+
+	Ok(result)
+}
+
+async fn meter_get_foreign_status(rpc: &str) -> Result<Value, String> {
+	let result = base::rpc_call::<_, Value>(rpc, "system_foreignStatus", &())
+		.await?
+		.result;
+
+	let result = result.ok_or("none")?;
+
+	Ok(result)
+}
+
+async fn meter_get_config(rpc: &str) -> Result<Value, String> {
+	let result = base::rpc_call::<_, Value>(rpc, "system_config", &())
+		.await?
+		.result;
+
+	let result = result.ok_or("none")?;
+
+	Ok(result)
+}
+
+pub enum Number {
+	#[allow(dead_code)]
+	Number(u64),
+	Best,
+	Finalized,
 }
 
 pub async fn get_block_info(
-	number: Option<u64>,
+	number: Number,
 	rpc: &str,
 ) -> Result<
 	(
@@ -177,10 +248,8 @@ pub async fn get_block_info(
 	),
 	String,
 > {
-	const CRFG_LOG_PREFIX: u8 = 3;
-
 	let (header, number, hash) = match number {
-		Some(number) => {
+		Number::Number(number) => {
 			let hash = base::rpc_call::<_, String>(rpc, "chain_getBlockHash", &[number])
 				.await?
 				.result
@@ -191,7 +260,7 @@ pub async fn get_block_info(
 				.ok_or("decode failed".to_string())?;
 			(header, number, hash)
 		}
-		None => {
+		Number::Best => {
 			let header = base::rpc_call::<_, Value>(rpc, "chain_getHeader", &())
 				.await?
 				.result
@@ -214,7 +283,32 @@ pub async fn get_block_info(
 				.ok_or("decode failed".to_string())?;
 			(header, number, hash)
 		}
+		Number::Finalized => {
+			let hash = base::rpc_call::<_, String>(rpc, "chain_getFinalizedHead", &())
+				.await?
+				.result
+				.ok_or("decode failed".to_string())?;
+			let header = base::rpc_call::<_, Value>(rpc, "chain_getHeader", &[&hash])
+				.await?
+				.result
+				.ok_or("decode failed".to_string())?;
+			let number_hex = header
+				.as_object()
+				.ok_or("none error".to_string())?
+				.get("number")
+				.ok_or("none error".to_string())?
+				.as_str()
+				.ok_or("none error".to_string())?;
+			let number = {
+				let tmp = number_hex.trim_start_matches("0x");
+				let tmp = u64::from_str_radix(tmp, 16).map_err(|_| "Decode failed")?;
+				tmp
+			};
+			(header, number, hash)
+		}
 	};
+
+	const CRFG_LOG_PREFIX: u8 = 3;
 
 	let digest = header
 		.as_object()
@@ -309,7 +403,7 @@ fn arrange_authorities(
 }
 
 fn arrange_block_info(
-	(number, hash, shard, _, authorities, pow): (
+	(number, hash, shard, finality_tracker, authorities, pow): (
 		u64,
 		String,
 		Option<(u16, u16)>,
@@ -350,12 +444,15 @@ fn arrange_block_info(
 			.collect::<Vec<_>>(),
 	});
 
+	let finality_tracker = finality_tracker;
+
 	BlockInfo {
 		number,
 		hash,
 		shard,
-		pow,
+		finality_tracker,
 		crfg,
+		pow,
 	}
 }
 
@@ -375,10 +472,16 @@ type Hash = [u8; 32];
 
 #[derive(Debug, Serialize)]
 struct Meter {
-	chain: Option<Chain>,
+	best: Option<BlockInfo>,
+	finalized: Option<BlockInfo>,
 	system: Option<System>,
+	peers: Option<Value>,
+	network_state: Option<Value>,
+	foreign_network_state: Option<Value>,
 	runtime: Option<Value>,
 	crfg: Option<Value>,
+	foreign_status: Option<Value>,
+	config: Option<Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -387,15 +490,6 @@ struct System {
 	version: Option<Value>,
 	chain: Option<Value>,
 	health: Option<Value>,
-	peers: Option<Value>,
-	network_state: Option<Value>,
-	foreign_network_state: Option<Value>,
-}
-
-#[derive(Debug, Serialize)]
-struct Chain {
-	best: Option<BlockInfo>,
-	finalized: Option<BlockInfo>,
 }
 
 #[derive(Debug, Serialize)]
@@ -403,8 +497,9 @@ struct BlockInfo {
 	number: u64,
 	hash: String,
 	shard: Option<BlockShardInfo>,
-	pow: Option<BlockPowInfo>,
 	crfg: Option<BlockCrfgInfo>,
+	finality_tracker: Option<u64>,
+	pow: Option<BlockPowInfo>,
 }
 
 #[derive(Debug, Serialize)]

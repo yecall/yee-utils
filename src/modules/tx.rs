@@ -24,6 +24,7 @@ use yee_signer::{KeyPair, PUBLIC_KEY_LEN, SECRET_KEY_LEN};
 
 use crate::modules::base::{Hex, RpcResponse};
 use crate::modules::keystore::get_keystore;
+use crate::modules::meter;
 use crate::modules::state::{get_map_storage_key_encode, get_value_storage_key};
 use crate::modules::{base, Command, Module};
 
@@ -679,7 +680,10 @@ fn accept_item(
 pub fn get_best_block_info(rpc: &str) -> Result<(u64, String, Option<(u16, u16)>), String> {
 	let mut runtime = Runtime::new().expect("qed");
 
-	let block_info = runtime.block_on(crate::modules::meter::get_block_info(None, rpc))?;
+	let block_info = runtime.block_on(crate::modules::meter::get_block_info(
+		meter::Number::Best,
+		rpc,
+	))?;
 
 	Ok((block_info.0, block_info.1, block_info.2))
 }
