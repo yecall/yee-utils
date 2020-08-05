@@ -111,11 +111,30 @@ fn sub_commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
 				)
 				.arg(
 					Arg::with_name("ADDRESS")
-						.help("prefix: str")
+						.help("Address")
 						.required(true)
 						.index(1),
 				),
 			f: balance,
+		},
+		Command {
+			app: SubCommand::with_name("nonce")
+				.about("Get nonce")
+				.arg(
+					Arg::with_name("RPC")
+						.long("rpc")
+						.short("r")
+						.help("RPC address")
+						.takes_value(true)
+						.required(true),
+				)
+				.arg(
+					Arg::with_name("ADDRESS")
+						.help("Address")
+						.required(true)
+						.index(1),
+				),
+			f: nonce,
 		},
 	]
 }
@@ -191,6 +210,29 @@ fn balance(matches: &ArgMatches) -> Result<Vec<String>, String> {
 
 	base::output(&data)
 }
+fn nonce(matches: &ArgMatches) -> Result<Vec<String>, String> {
+	let rpc = &get_rpc(matches);
+
+	let prefix = "System AccountNonce";
+	let address = matches.value_of("ADDRESS").expect("qed");
+	let address = Address(address.to_string());
+	let (public_key, _hrp) =
+		<[u8; 32]>::from_address(&address).map_err(|_| "Address decode failed")?;
+
+	let prefix = prefix.as_bytes().to_vec();
+	let key: Vec<u8> = public_key.to_vec();
+
+	let storage_key = get_map_storage_key(&key, &prefix);
+
+	let data = get_storage(rpc, storage_key)?;
+
+	let data: Option<u64> = match data {
+		Some(data) => Some(u64_from_slice(&data)?),
+		None => None,
+	};
+
+	base::output(&data)
+}
 
 fn u128_from_slice(bytes: &[u8]) -> Result<u128, String> {
 	const LEN: usize = 16;
@@ -201,6 +243,17 @@ fn u128_from_slice(bytes: &[u8]) -> Result<u128, String> {
 	let bytes = &bytes[..];
 	array.copy_from_slice(bytes);
 	Ok(u128::from_le_bytes(array))
+}
+
+fn u64_from_slice(bytes: &[u8]) -> Result<u64, String> {
+	const LEN: usize = 8;
+	if bytes.len() != LEN {
+		return Err("u128 decode error".to_string());
+	}
+	let mut array = [0; LEN];
+	let bytes = &bytes[..];
+	array.copy_from_slice(bytes);
+	Ok(u64::from_le_bytes(array))
 }
 
 pub fn get_value_storage_key(key: &[u8]) -> StorageKey {
