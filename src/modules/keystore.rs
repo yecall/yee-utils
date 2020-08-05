@@ -13,9 +13,9 @@ use serde::{Deserialize, Serialize};
 use sss_rs::wrapped_sharing::share;
 use yee_signer::KeyPair;
 
+use crate::modules::{base, Command, Module};
 use crate::modules::account::{desc_public_key, generate_account, random_32_bytes};
 use crate::modules::base::Hex;
-use crate::modules::{base, Command, Module};
 
 pub fn module<'a, 'b>() -> Module<'a, 'b> {
     Module {

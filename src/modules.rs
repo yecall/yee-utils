@@ -11,6 +11,7 @@ mod keystore;
 mod meter;
 mod state;
 mod tx;
+mod block;
 mod usage;
 
 #[derive(Clone)]
@@ -52,6 +53,7 @@ impl<'a, 'b> ModuleManager<'a, 'b> {
 		mm.register(keystore::module());
 		mm.register(meter::module());
 		mm.register(tx::module());
+		mm.register(block::module());
 		mm.register(event::module());
 		mm.register(state::module());
 		mm
