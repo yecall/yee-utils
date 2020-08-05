@@ -8,8 +8,8 @@ use tokio::runtime::Runtime;
 use yee_runtime::Event;
 
 use crate::modules::base::{get_rpc, Hex};
+use crate::modules::meter::{get_block_info, Number};
 use crate::modules::state::get_value_storage_key;
-use crate::modules::tx::{get_best_block_info, get_block_hash};
 use crate::modules::{base, Command, Module};
 
 pub fn module<'a, 'b>() -> Module<'a, 'b> {
@@ -75,7 +75,7 @@ fn sub_commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
 fn search(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	let rpc = &get_rpc(matches);
 
-	let (best_number, _, _) = get_best_block_info(rpc)?;
+	let best_number = get_block_info(Number::Best, rpc)?.number;
 
 	let keyword = matches.value_of("KEYWORD");
 
@@ -103,7 +103,8 @@ fn search(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	};
 
 	for i in from..(to + 1) {
-		let block_hash = get_block_hash(rpc, i)?;
+		let block_hash = get_block_info(Number::Number(i), rpc)?.hash;
+		let block_hash: Vec<u8> = block_hash.into();
 		let events = get_block_events(rpc, &block_hash)?;
 		for event in events {
 			let block = SearchItemBlock {

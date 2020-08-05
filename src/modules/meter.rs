@@ -1,4 +1,5 @@
 use std::collections::{hash_map::Entry, HashMap};
+use std::str::FromStr;
 
 use chrono::offset::TimeZone;
 use chrono::Local;
@@ -234,7 +235,7 @@ async fn meter_get_best(rpc: &str, enabled: bool) -> Result<BlockInfo, String> {
 	if !enabled {
 		return Err("disabled".to_string());
 	}
-	let info = get_block_info(Number::Best, rpc).await?;
+	let info = get_block_info_async(Number::Best, rpc).await?;
 
 	let info = arrange_block_info(info);
 
@@ -245,7 +246,7 @@ async fn meter_get_finalized(rpc: &str, enabled: bool) -> Result<BlockInfo, Stri
 	if !enabled {
 		return Err("disabled".to_string());
 	}
-	let info = get_block_info(Number::Finalized, rpc).await?;
+	let info = get_block_info_async(Number::Finalized, rpc).await?;
 
 	let info = arrange_block_info(info);
 
@@ -383,13 +384,23 @@ pub enum Number {
 	Finalized,
 }
 
-pub async fn get_block_info(
+pub fn get_block_info(number: Number, rpc: &str) -> Result<BlockInfo, String> {
+	let mut runtime = Runtime::new().expect("qed");
+
+	let block_info = runtime.block_on(get_block_info_async(number, rpc))?;
+
+	let block_info = arrange_block_info(block_info);
+
+	Ok(block_info)
+}
+
+async fn get_block_info_async(
 	number: Number,
 	rpc: &str,
 ) -> Result<
 	(
 		u64,
-		String,
+		Hex,
 		Option<(u16, u16)>,
 		Option<u64>,
 		Option<(u64, Vec<(AuthorityId, u64)>)>,
@@ -407,6 +418,7 @@ pub async fn get_block_info(
 				.await?
 				.result
 				.ok_or("decode failed".to_string())?;
+			let hash = Hex::from_str(&hash).expect("qed");
 			(header, number, hash)
 		}
 		Number::Best => {
@@ -430,6 +442,7 @@ pub async fn get_block_info(
 				.await?
 				.result
 				.ok_or("decode failed".to_string())?;
+			let hash = Hex::from_str(&hash).expect("qed");
 			(header, number, hash)
 		}
 		Number::Finalized => {
@@ -453,6 +466,7 @@ pub async fn get_block_info(
 				let tmp = u64::from_str_radix(tmp, 16).map_err(|_| "Decode failed")?;
 				tmp
 			};
+			let hash = Hex::from_str(&hash).expect("qed");
 			(header, number, hash)
 		}
 	};
@@ -551,10 +565,10 @@ fn arrange_authorities(
 	(delay, map.into_iter().collect::<Vec<_>>())
 }
 
-fn arrange_block_info(
+pub fn arrange_block_info(
 	(number, hash, shard, finality_tracker, authorities, pow): (
 		u64,
-		String,
+		Hex,
 		Option<(u16, u16)>,
 		Option<u64>,
 		Option<(u64, Vec<(AuthorityId, u64)>)>,
@@ -652,23 +666,23 @@ struct System {
 }
 
 #[derive(Debug, Serialize)]
-struct BlockInfo {
-	number: u64,
-	hash: String,
-	shard: Option<BlockShardInfo>,
-	crfg: Option<BlockCrfgInfo>,
-	finality_tracker: Option<u64>,
-	pow: Option<BlockPowInfo>,
+pub struct BlockInfo {
+	pub number: u64,
+	pub hash: Hex,
+	pub shard: Option<BlockShardInfo>,
+	pub crfg: Option<BlockCrfgInfo>,
+	pub finality_tracker: Option<u64>,
+	pub pow: Option<BlockPowInfo>,
 }
 
 #[derive(Debug, Serialize)]
-struct BlockShardInfo {
-	shard_num: u16,
-	shard_count: u16,
+pub struct BlockShardInfo {
+	pub shard_num: u16,
+	pub shard_count: u16,
 }
 
 #[derive(Debug, Serialize)]
-struct BlockPowInfo {
+pub struct BlockPowInfo {
 	timestamp: u64,
 	time: String,
 	target: Hex,
@@ -676,7 +690,7 @@ struct BlockPowInfo {
 }
 
 #[derive(Debug, Serialize)]
-struct BlockCrfgInfo {
+pub struct BlockCrfgInfo {
 	authorities: Vec<(Hex, u64)>,
 }
 

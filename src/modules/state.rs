@@ -5,6 +5,8 @@ use parity_codec::{Codec, KeyedVec};
 use substrate_primitives::blake2_256;
 use substrate_primitives::storage::{StorageData, StorageKey};
 use tokio::runtime::Runtime;
+use yee_primitives::Address;
+use yee_primitives::AddressCodec;
 
 use crate::modules::base::{get_rpc, Hex};
 use crate::modules::{base, Command, Module};
@@ -45,6 +47,14 @@ fn sub_commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
 						.required(true),
 				)
 				.arg(
+					Arg::with_name("NUMBER")
+						.long("number")
+						.short("n")
+						.help("Block number")
+						.takes_value(true)
+						.required(false),
+				)
+				.arg(
 					Arg::with_name("KEY")
 						.help("key: str")
 						.required(true)
@@ -62,6 +72,14 @@ fn sub_commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
 						.help("RPC address")
 						.takes_value(true)
 						.required(true),
+				)
+				.arg(
+					Arg::with_name("NUMBER")
+						.long("number")
+						.short("n")
+						.help("Block number")
+						.takes_value(true)
+						.required(false),
 				)
 				.arg(
 					Arg::with_name("KEY")
@@ -83,6 +101,14 @@ fn sub_commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
 						.required(true),
 				)
 				.arg(
+					Arg::with_name("NUMBER")
+						.long("number")
+						.short("n")
+						.help("Block number")
+						.takes_value(true)
+						.required(false),
+				)
+				.arg(
 					Arg::with_name("PREFIX")
 						.help("prefix: str")
 						.required(true)
@@ -96,6 +122,60 @@ fn sub_commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
 				),
 			f: map,
 		},
+		Command {
+			app: SubCommand::with_name("balance")
+				.about("Get balance")
+				.arg(
+					Arg::with_name("RPC")
+						.long("rpc")
+						.short("r")
+						.help("RPC address")
+						.takes_value(true)
+						.required(true),
+				)
+				.arg(
+					Arg::with_name("NUMBER")
+						.long("number")
+						.short("n")
+						.help("Block number")
+						.takes_value(true)
+						.required(false),
+				)
+				.arg(
+					Arg::with_name("ADDRESS")
+						.help("Address")
+						.required(true)
+						.index(1),
+				),
+			f: balance,
+		},
+		Command {
+			app: SubCommand::with_name("nonce")
+				.about("Get nonce")
+				.arg(
+					Arg::with_name("RPC")
+						.long("rpc")
+						.short("r")
+						.help("RPC address")
+						.takes_value(true)
+						.required(true),
+				)
+				.arg(
+					Arg::with_name("NUMBER")
+						.long("number")
+						.short("n")
+						.help("Block number")
+						.takes_value(true)
+						.required(false),
+				)
+				.arg(
+					Arg::with_name("ADDRESS")
+						.help("Address")
+						.required(true)
+						.index(1),
+				),
+			f: nonce,
+		},
 	]
 }
 
@@ -105,9 +185,14 @@ fn value(matches: &ArgMatches) -> Result<Vec<String>, String> {
 
 	let key = key.as_bytes();
 
+	let number = match matches.value_of("NUMBER") {
+		Some(number) => Some(number.parse::<u64>().map_err(|_| "Invalid block number")?),
+		None => None,
+	};
+
 	let storage_key = get_value_storage_key(key);
 
-	let data = get_storage(rpc, storage_key)?;
+	let data = get_storage(rpc, storage_key, number)?;
 
 	let data: Option<Hex> = data.map(|x| x.into());
 
@@ -120,9 +205,14 @@ fn unhashed_value(matches: &ArgMatches) -> Result<Vec<String>, String> {
 
 	let key = key.as_bytes();
 
+	let number = match matches.value_of("NUMBER") {
+		Some(number) => Some(number.parse::<u64>().map_err(|_| "Invalid block number")?),
+		None => None,
+	};
+
 	let storage_key = StorageKey(key.to_vec());
 
-	let data = get_storage(rpc, storage_key)?;
+	let data = get_storage(rpc, storage_key, number)?;
 
 	let data: Option<Hex> = data.map(|x| x.into());
 
@@ -138,13 +228,98 @@ fn map(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	let prefix = prefix.as_bytes().to_vec();
 	let key: Vec<u8> = Hex::from_str(key)?.into();
 
+	let number = match matches.value_of("NUMBER") {
+		Some(number) => Some(number.parse::<u64>().map_err(|_| "Invalid block number")?),
+		None => None,
+	};
+
 	let storage_key = get_map_storage_key(&key, &prefix);
 
-	let data = get_storage(rpc, storage_key)?;
+	let data = get_storage(rpc, storage_key, number)?;
 
 	let data: Option<Hex> = data.map(|x| x.into());
 
 	base::output(&data)
+}
+
+fn balance(matches: &ArgMatches) -> Result<Vec<String>, String> {
+	let rpc = &get_rpc(matches);
+
+	let prefix = "Balances FreeBalance";
+	let address = matches.value_of("ADDRESS").expect("qed");
+	let address = Address(address.to_string());
+	let (public_key, _hrp) =
+		<[u8; 32]>::from_address(&address).map_err(|_| "Address decode failed")?;
+
+	let prefix = prefix.as_bytes().to_vec();
+	let key: Vec<u8> = public_key.to_vec();
+
+	let number = match matches.value_of("NUMBER") {
+		Some(number) => Some(number.parse::<u64>().map_err(|_| "Invalid block number")?),
+		None => None,
+	};
+
+	let storage_key = get_map_storage_key(&key, &prefix);
+
+	let data = get_storage(rpc, storage_key, number)?;
+
+	let data: Option<u128> = match data {
+		Some(data) => Some(u128_from_slice(&data)?),
+		None => None,
+	};
+
+	base::output(&data)
+}
+
+fn nonce(matches: &ArgMatches) -> Result<Vec<String>, String> {
+	let rpc = &get_rpc(matches);
+
+	let prefix = "System AccountNonce";
+	let address = matches.value_of("ADDRESS").expect("qed");
+	let address = Address(address.to_string());
+	let (public_key, _hrp) =
+		<[u8; 32]>::from_address(&address).map_err(|_| "Address decode failed")?;
+
+	let prefix = prefix.as_bytes().to_vec();
+	let key: Vec<u8> = public_key.to_vec();
+
+	let number = match matches.value_of("NUMBER") {
+		Some(number) => Some(number.parse::<u64>().map_err(|_| "Invalid block number")?),
+		None => None,
+	};
+
+	let storage_key = get_map_storage_key(&key, &prefix);
+
+	let data = get_storage(rpc, storage_key, number)?;
+
+	let data: Option<u64> = match data {
+		Some(data) => Some(u64_from_slice(&data)?),
+		None => None,
+	};
+
+	base::output(&data)
+}
+
+fn u128_from_slice(bytes: &[u8]) -> Result<u128, String> {
+	const LEN: usize = 16;
+	if bytes.len() != LEN {
+		return Err("u128 decode error".to_string());
+	}
+	let mut array = [0; LEN];
+	let bytes = &bytes[..];
+	array.copy_from_slice(bytes);
+	Ok(u128::from_le_bytes(array))
+}
+
+fn u64_from_slice(bytes: &[u8]) -> Result<u64, String> {
+	const LEN: usize = 8;
+	if bytes.len() != LEN {
+		return Err("u128 decode error".to_string());
+	}
+	let mut array = [0; LEN];
+	let bytes = &bytes[..];
+	array.copy_from_slice(bytes);
+	Ok(u64::from_le_bytes(array))
 }
 
 pub fn get_value_storage_key(key: &[u8]) -> StorageKey {
@@ -225,19 +400,59 @@ mod cases {
                         is_example: true,
                         is_test: false,
                         since: "0.1.0".to_string(),
-                    }
+                    },
+					Case {
+						desc: "Get balance".to_string(),
+						input: vec!["balance", "-r", "http://localhost:9033", "yee1x6c3d0x7la4lvdfee63u4lwepw6n6m0sgwew77gaydxf9jjaaqzqzzu8dj"].into_iter().map(Into::into).collect(),
+						output: vec![r#"{
+  "result": 199975600000
+}"#].into_iter().map(Into::into).collect(),
+						is_example: true,
+						is_test: false,
+						since: "0.6.0".to_string(),
+					},
+					Case {
+						desc: "Get nonce".to_string(),
+						input: vec!["nonce", "-r", "http://localhost:9033", "yee1x6c3d0x7la4lvdfee63u4lwepw6n6m0sgwew77gaydxf9jjaaqzqzzu8dj"].into_iter().map(Into::into).collect(),
+						output: vec![r#"{
+  "result": 1
+}"#].into_iter().map(Into::into).collect(),
+						is_example: true,
+						is_test: false,
+						since: "0.6.0".to_string(),
+					}
                 ],
             ),
         ].into_iter().collect()
 	}
 }
 
-fn get_storage(rpc: &str, storage_key: StorageKey) -> Result<Option<Vec<u8>>, String> {
+fn get_storage(
+	rpc: &str,
+	storage_key: StorageKey,
+	block_number: Option<u64>,
+) -> Result<Option<Vec<u8>>, String> {
 	let mut runtime = Runtime::new().expect("qed");
+
+	let block_hash = match block_number {
+		Some(block_number) => {
+			let result = runtime
+				.block_on(base::rpc_call::<_, Option<String>>(
+					rpc,
+					"chain_getBlockHash",
+					&(block_number,),
+				))?
+				.result
+				.ok_or("decode failed".to_string())?;
+			result
+		}
+		None => None,
+	};
+
 	let result = runtime.block_on(base::rpc_call::<_, Option<StorageData>>(
 		rpc,
 		"state_getStorage",
-		&(&storage_key,),
+		&(&storage_key, &block_hash),
 	))?;
 
 	if let Some(_error) = result.error {

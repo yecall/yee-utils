@@ -24,7 +24,7 @@ use yee_signer::{KeyPair, PUBLIC_KEY_LEN, SECRET_KEY_LEN};
 
 use crate::modules::base::{get_rpc, Hex, RpcResponse};
 use crate::modules::keystore::get_keystore;
-use crate::modules::meter;
+use crate::modules::meter::{get_block_info, Number};
 use crate::modules::state::{get_map_storage_key_encode, get_value_storage_key};
 use crate::modules::{base, Command, Module};
 
@@ -208,12 +208,14 @@ fn compose(matches: &ArgMatches) -> Result<Vec<String>, String> {
 
 	let call = call_cow.as_ref();
 
-	let (best_number, best_hash, shard_info) = get_best_block_info(rpc)?;
+	let block_info = get_block_info(Number::Best, rpc)?;
+	let (best_number, best_hash, shard_info) = (
+		block_info.number,
+		block_info.hash,
+		block_info.shard.map(|x| (x.shard_num, x.shard_count)),
+	);
 
-	let best_hash = {
-		let tmp = best_hash.trim_start_matches("0x");
-		hex::decode(tmp).map_err(|_| "Invalid best hash")?
-	};
+	let best_hash: Vec<u8> = best_hash.into();
 
 	let (shard_num, shard_count) = shard_info.ok_or("Invalid shard info".to_string())?;
 
@@ -322,7 +324,7 @@ fn submit(matches: &ArgMatches) -> Result<Vec<String>, String> {
 fn search(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	let rpc = &get_rpc(matches);
 
-	let (best_number, _, _) = get_best_block_info(rpc)?;
+	let best_number = get_block_info(Number::Best, rpc)?.number;
 
 	let expected_hash: Option<Vec<u8>> = match matches.value_of("HASH") {
 		Some(v) => {
@@ -426,7 +428,8 @@ fn search(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	// append in block
 	if let Some((from, to)) = number_range {
 		for i in from..(to + 1) {
-			let block_hash = get_block_hash(rpc, i)?;
+			let block_hash = get_block_info(Number::Number(i), rpc)?.hash;
+			let block_hash: Vec<u8> = block_hash.into();
 			let extrinsics = get_block_extrinsics(rpc, &block_hash)?;
 			let results = get_block_extrinsics_result(rpc, &block_hash)?;
 			for (index, raw) in extrinsics.into_iter().enumerate() {
@@ -675,34 +678,6 @@ fn accept_item(
 	}
 
 	true
-}
-
-pub fn get_best_block_info(rpc: &str) -> Result<(u64, String, Option<(u16, u16)>), String> {
-	let mut runtime = Runtime::new().expect("qed");
-
-	let block_info = runtime.block_on(crate::modules::meter::get_block_info(
-		meter::Number::Best,
-		rpc,
-	))?;
-
-	Ok((block_info.0, block_info.1, block_info.2))
-}
-
-pub fn get_block_hash(rpc: &str, number: u64) -> Result<Vec<u8>, String> {
-	let mut runtime = Runtime::new().expect("qed");
-	let block_hash = runtime
-		.block_on(base::rpc_call::<_, String>(
-			rpc,
-			"chain_getBlockHash",
-			&(number,),
-		))?
-		.result;
-
-	let block_hash = block_hash.ok_or(format!("Block number not found: {}", number))?;
-
-	let block_hash: Vec<u8> = Hex::from_str(&block_hash)?.into();
-
-	Ok(block_hash)
 }
 
 fn get_block_extrinsics(rpc: &str, block_hash: &[u8]) -> Result<Vec<Vec<u8>>, String> {

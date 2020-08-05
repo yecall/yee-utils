@@ -5,6 +5,7 @@ use std::iter;
 mod account;
 mod authority;
 mod base;
+mod block;
 mod completion;
 mod event;
 mod keystore;
@@ -52,6 +53,7 @@ impl<'a, 'b> ModuleManager<'a, 'b> {
 		mm.register(keystore::module());
 		mm.register(meter::module());
 		mm.register(tx::module());
+		mm.register(block::module());
 		mm.register(event::module());
 		mm.register(state::module());
 		mm

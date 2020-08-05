@@ -307,8 +307,17 @@ fn put_keystore(
 ) -> Result<(), String> {
 	let mut password_list: Vec<String> = vec![];
 	for i in 0..total {
-		let prompt = format!("Password ({}/{}): ", i + 1, total);
-		let password = rpassword::read_password_from_tty(Some(&prompt)).unwrap();
+		let password = loop {
+			let index = i + 1;
+			let prompt = format!("Password ({}/{}): ", index, total);
+			let password = rpassword::read_password_from_tty(Some(&prompt)).unwrap();
+			let prompt = format!("Retype password: ({}/{}): ", index, total);
+			let password2 = rpassword::read_password_from_tty(Some(&prompt)).unwrap();
+			if password == password2 {
+				break password;
+			}
+			println!("Passwords do not match\n");
+		};
 		password_list.push(password);
 	}
 	let secret = secret_key.to_vec();
