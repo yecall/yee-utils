@@ -5,13 +5,13 @@ use std::iter;
 mod account;
 mod authority;
 mod base;
+mod block;
 mod completion;
 mod event;
 mod keystore;
 mod meter;
 mod state;
 mod tx;
-mod block;
 mod usage;
 
 #[derive(Clone)]

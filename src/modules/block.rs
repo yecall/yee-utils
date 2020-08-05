@@ -2,148 +2,146 @@ use std::str::FromStr;
 
 use clap::{Arg, ArgMatches, SubCommand};
 
-use crate::modules::{base, Command, Module};
 use crate::modules::base::{get_rpc, Hex};
-use crate::modules::meter::{BlockInfo, get_block_info, Number};
+use crate::modules::meter::{get_block_info, BlockInfo, Number};
+use crate::modules::{base, Command, Module};
 
 pub fn module<'a, 'b>() -> Module<'a, 'b> {
-    Module {
-        desc: "Block tools".to_string(),
-        commands: commands(),
-        get_cases: cases::cases,
-    }
+	Module {
+		desc: "Block tools".to_string(),
+		commands: commands(),
+		get_cases: cases::cases,
+	}
 }
 
 pub fn commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
-    let mut app = SubCommand::with_name("block").about("Block tools");
-    for sub_command in sub_commands() {
-        app = app.subcommand(sub_command.app);
-    }
-    let f = run;
+	let mut app = SubCommand::with_name("block").about("Block tools");
+	for sub_command in sub_commands() {
+		app = app.subcommand(sub_command.app);
+	}
+	let f = run;
 
-    vec![Command { app, f }]
+	vec![Command { app, f }]
 }
 
 fn run(matches: &ArgMatches) -> Result<Vec<String>, String> {
-    base::run(matches, || sub_commands(), || commands())
+	base::run(matches, || sub_commands(), || commands())
 }
 
 fn sub_commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
-    vec![
-        Command {
-            app: SubCommand::with_name("search")
-                .about("Search tx")
-                .arg(
-                    Arg::with_name("RPC")
-                        .long("rpc")
-                        .short("r")
-                        .help("RPC address")
-                        .takes_value(true)
-                        .required(true),
-                )
-                .arg(
-                    Arg::with_name("HASH")
-                        .long("hash")
-                        .help("TX hash")
-                        .takes_value(true)
-                        .required(false),
-                )
-                .arg(
-                    Arg::with_name("FROM_BLOCK_NUMBER")
-                        .long("from")
-                        .help("From block number: (numeric)")
-                        .takes_value(true)
-                        .required(false),
-                )
-                .arg(
-                    Arg::with_name("TO_BLOCK_NUMBER")
-                        .long("to")
-                        .help("To block number: (numeric)")
-                        .takes_value(true)
-                        .required(false),
-                ),
-            f: search,
-        },
-    ]
+	vec![Command {
+		app: SubCommand::with_name("search")
+			.about("Search tx")
+			.arg(
+				Arg::with_name("RPC")
+					.long("rpc")
+					.short("r")
+					.help("RPC address")
+					.takes_value(true)
+					.required(true),
+			)
+			.arg(
+				Arg::with_name("HASH")
+					.long("hash")
+					.help("TX hash")
+					.takes_value(true)
+					.required(false),
+			)
+			.arg(
+				Arg::with_name("FROM_BLOCK_NUMBER")
+					.long("from")
+					.help("From block number: (numeric)")
+					.takes_value(true)
+					.required(false),
+			)
+			.arg(
+				Arg::with_name("TO_BLOCK_NUMBER")
+					.long("to")
+					.help("To block number: (numeric)")
+					.takes_value(true)
+					.required(false),
+			),
+		f: search,
+	}]
 }
 
 fn search(matches: &ArgMatches) -> Result<Vec<String>, String> {
-    let rpc = &get_rpc(matches);
+	let rpc = &get_rpc(matches);
 
-    let best_number = get_block_info(Number::Best, rpc)?.number;
+	let best_number = get_block_info(Number::Best, rpc)?.number;
 
-    let expected_hash: Option<Vec<u8>> = match matches.value_of("HASH") {
-        Some(v) => {
-            let tmp = Hex::from_str(v)?;
-            Some(tmp.into())
-        }
-        None => None,
-    };
+	let expected_hash: Option<Vec<u8>> = match matches.value_of("HASH") {
+		Some(v) => {
+			let tmp = Hex::from_str(v)?;
+			Some(tmp.into())
+		}
+		None => None,
+	};
 
-    let from: u64 = match matches.value_of("FROM_BLOCK_NUMBER") {
-        Some(v) => {
-            let tmp = v.parse::<u64>().map_err(|_| "Invalid from block number")?;
-            tmp
-        }
-        None => best_number - 20,
-    };
+	let from: u64 = match matches.value_of("FROM_BLOCK_NUMBER") {
+		Some(v) => {
+			let tmp = v.parse::<u64>().map_err(|_| "Invalid from block number")?;
+			tmp
+		}
+		None => best_number - 20,
+	};
 
-    let to: u64 = match matches.value_of("TO_BLOCK_NUMBER") {
-        Some(v) => {
-            let tmp = v.parse::<u64>().map_err(|_| "Invalid to block number")?;
-            tmp
-        }
-        None => best_number,
-    };
+	let to: u64 = match matches.value_of("TO_BLOCK_NUMBER") {
+		Some(v) => {
+			let tmp = v.parse::<u64>().map_err(|_| "Invalid to block number")?;
+			tmp
+		}
+		None => best_number,
+	};
 
-    let number_range = Some((from, to));
+	let number_range = Some((from, to));
 
-    let mut items = vec![];
+	let mut items = vec![];
 
-    if let Some((from, to)) = number_range {
-        for i in from..(to + 1) {
-            let info = get_block_info(Number::Number(i), rpc)?;
-            if accept_item(&info, expected_hash.as_ref()) {
-                items.push(info);
-            }
-        }
-    }
+	if let Some((from, to)) = number_range {
+		for i in from..(to + 1) {
+			let info = get_block_info(Number::Number(i), rpc)?;
+			if accept_item(&info, expected_hash.as_ref()) {
+				items.push(info);
+			}
+		}
+	}
 
-    let result = items
-        .into_iter()
-        .map(Into::into)
-        .collect::<Vec<BlockInfo>>();
+	let result = items
+		.into_iter()
+		.map(Into::into)
+		.collect::<Vec<BlockInfo>>();
 
-    base::output(&result)
+	base::output(&result)
 }
 
-fn accept_item(
-    item: &BlockInfo,
-    expected_hash: Option<&Vec<u8>>,
-) -> bool {
-    if let Some(expected_hash) = expected_hash {
-        let expected_hash: Hex = expected_hash.clone().into();
-        if &expected_hash != &item.hash {
-            return false;
-        }
-    }
+fn accept_item(item: &BlockInfo, expected_hash: Option<&Vec<u8>>) -> bool {
+	if let Some(expected_hash) = expected_hash {
+		let expected_hash: Hex = expected_hash.clone().into();
+		if &expected_hash != &item.hash {
+			return false;
+		}
+	}
 
-    true
+	true
 }
 
 mod cases {
-    use linked_hash_map::LinkedHashMap;
+	use linked_hash_map::LinkedHashMap;
 
-    use crate::modules::Case;
+	use crate::modules::Case;
 
-    pub fn cases() -> LinkedHashMap<&'static str, Vec<Case>> {
-        vec![
-            (
-                "block",
-                vec![Case {
-                    desc: "Search block".to_string(),
-                    input: vec!["search", "-r", "http://localhost:9033", "--from", "1150"].into_iter().map(Into::into).collect(),
-                    output: vec![r#"{
+	pub fn cases() -> LinkedHashMap<&'static str, Vec<Case>> {
+		vec![(
+			"block",
+			vec![Case {
+				desc: "Search block".to_string(),
+				input: vec!["search", "-r", "http://localhost:9033", "--from", "1150"]
+					.into_iter()
+					.map(Into::into)
+					.collect(),
+				output: vec![
+					r#"{
   "result": [
     {
       "number": 1150,
@@ -254,24 +252,29 @@ mod cases {
       }
     }
   ]
-}"#].into_iter().map(Into::into).collect(),
-                    is_example: true,
-                    is_test: false,
-                    since: "0.6.0".to_string(),
-                }],
-            )
-        ].into_iter().collect()
-    }
+}"#,
+				]
+				.into_iter()
+				.map(Into::into)
+				.collect(),
+				is_example: true,
+				is_test: false,
+				since: "0.6.0".to_string(),
+			}],
+		)]
+		.into_iter()
+		.collect()
+	}
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::modules::base::test::test_module;
+	use crate::modules::base::test::test_module;
 
-    use super::*;
+	use super::*;
 
-    #[test]
-    fn test_cases() {
-        test_module(module());
-    }
+	#[test]
+	fn test_cases() {
+		test_module(module());
+	}
 }
