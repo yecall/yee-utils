@@ -5776,13 +5776,17 @@ dependencies = [
 
 [[package]]
 name = "yee-signer"
-version = "0.3.0"
-source = "git+https://github.com/yeeco/yee-signer?tag=v0.3.0#f31fc8f0f4a9cd1e04641462f1dd7fafc77bb5a0"
+version = "0.5.0"
+source = "git+https://github.com/yeeco/yee-signer?tag=v0.5.0#252e5532924992148083efab4833a725fdb2a6c4"
 dependencies = [
+ "bech32",
  "blake2-rfc",
+ "hex 0.3.2",
  "impl-serde 0.1.1",
  "jni",
  "parity-codec",
+ "rand 0.6.5",
+ "regex",
  "schnorrkel",
  "serde",
  "serde_derive",
@@ -5956,7 +5960,7 @@ dependencies = [
 
 [[package]]
 name = "yee-utils"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "byteorder 1.3.4",
  "chrono",
