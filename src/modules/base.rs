@@ -173,6 +173,7 @@ pub async fn rpc_call<P: Serialize, R: DeserializeOwned>(
 
 	let client = reqwest::ClientBuilder::new()
 		.connect_timeout(Duration::from_secs(3))
+		.timeout(Duration::from_secs(5))
 		.build()
 		.map_err(|_e| "Build client error")?;
 
