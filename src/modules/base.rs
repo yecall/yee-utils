@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::io;
 use std::io::{BufRead, Read, Write};
 use std::str::FromStr;
+use std::time::Duration;
 
 use clap::ArgMatches;
 use serde::{
@@ -170,7 +171,11 @@ pub async fn rpc_call<P: Serialize, R: DeserializeOwned>(
 		id: 1,
 	};
 
-	let client = reqwest::Client::new();
+	let client = reqwest::ClientBuilder::new()
+		.connect_timeout(Duration::from_secs(3))
+		.build()
+		.map_err(|_e| "Build client error")?;
+
 	let res = client
 		.post(rpc)
 		.json(&request)
