@@ -1,8 +1,16 @@
 [package]
 name = "yee-utils"
-version = "0.8.0"
+version = "0.9.0"
 authors = ["YeeCo <contact@yeefoundation.com>"]
 edition = "2018"
+
+[lib]
+name = "yee_utils_lib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "yee-utils"
+path = "src/main.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

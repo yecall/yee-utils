@@ -231,7 +231,7 @@ async fn get_meter(rpc: &str, enable_list: &EnableList) -> Meter {
 	meter
 }
 
-async fn meter_get_best(rpc: &str, enabled: bool) -> Result<BlockInfo, String> {
+pub async fn meter_get_best(rpc: &str, enabled: bool) -> Result<BlockInfo, String> {
 	if !enabled {
 		return Err("disabled".to_string());
 	}
@@ -242,7 +242,7 @@ async fn meter_get_best(rpc: &str, enabled: bool) -> Result<BlockInfo, String> {
 	Ok(info)
 }
 
-async fn meter_get_finalized(rpc: &str, enabled: bool) -> Result<BlockInfo, String> {
+pub async fn meter_get_finalized(rpc: &str, enabled: bool) -> Result<BlockInfo, String> {
 	if !enabled {
 		return Err("disabled".to_string());
 	}
@@ -253,7 +253,7 @@ async fn meter_get_finalized(rpc: &str, enabled: bool) -> Result<BlockInfo, Stri
 	Ok(info)
 }
 
-async fn meter_get_system(rpc: &str, enabled: bool) -> Result<System, String> {
+pub async fn meter_get_system(rpc: &str, enabled: bool) -> Result<System, String> {
 	if !enabled {
 		return Err("disabled".to_string());
 	}
@@ -286,7 +286,7 @@ async fn meter_get_system(rpc: &str, enabled: bool) -> Result<System, String> {
 	Ok(system)
 }
 
-async fn meter_get_peers(rpc: &str, enabled: bool) -> Result<Value, String> {
+pub async fn meter_get_peers(rpc: &str, enabled: bool) -> Result<Value, String> {
 	if !enabled {
 		return Err("disabled".to_string());
 	}
@@ -299,7 +299,7 @@ async fn meter_get_peers(rpc: &str, enabled: bool) -> Result<Value, String> {
 	Ok(result)
 }
 
-async fn meter_get_network_state(rpc: &str, enabled: bool) -> Result<Value, String> {
+pub async fn meter_get_network_state(rpc: &str, enabled: bool) -> Result<Value, String> {
 	if !enabled {
 		return Err("disabled".to_string());
 	}
@@ -312,7 +312,7 @@ async fn meter_get_network_state(rpc: &str, enabled: bool) -> Result<Value, Stri
 	Ok(result)
 }
 
-async fn meter_get_foreign_network_state(rpc: &str, enabled: bool) -> Result<Value, String> {
+pub async fn meter_get_foreign_network_state(rpc: &str, enabled: bool) -> Result<Value, String> {
 	if !enabled {
 		return Err("disabled".to_string());
 	}
@@ -325,7 +325,7 @@ async fn meter_get_foreign_network_state(rpc: &str, enabled: bool) -> Result<Val
 	Ok(result)
 }
 
-async fn meter_get_runtime(rpc: &str, enabled: bool) -> Result<Value, String> {
+pub async fn meter_get_runtime(rpc: &str, enabled: bool) -> Result<Value, String> {
 	if !enabled {
 		return Err("disabled".to_string());
 	}
@@ -338,7 +338,7 @@ async fn meter_get_runtime(rpc: &str, enabled: bool) -> Result<Value, String> {
 	Ok(result)
 }
 
-async fn meter_get_crfg(rpc: &str, enabled: bool) -> Result<Value, String> {
+pub async fn meter_get_crfg(rpc: &str, enabled: bool) -> Result<Value, String> {
 	if !enabled {
 		return Err("disabled".to_string());
 	}
@@ -351,7 +351,7 @@ async fn meter_get_crfg(rpc: &str, enabled: bool) -> Result<Value, String> {
 	Ok(result)
 }
 
-async fn meter_get_foreign_status(rpc: &str, enabled: bool) -> Result<Value, String> {
+pub async fn meter_get_foreign_status(rpc: &str, enabled: bool) -> Result<Value, String> {
 	if !enabled {
 		return Err("disabled".to_string());
 	}
@@ -364,7 +364,7 @@ async fn meter_get_foreign_status(rpc: &str, enabled: bool) -> Result<Value, Str
 	Ok(result)
 }
 
-async fn meter_get_config(rpc: &str, enabled: bool) -> Result<Value, String> {
+pub async fn meter_get_config(rpc: &str, enabled: bool) -> Result<Value, String> {
 	if !enabled {
 		return Err("disabled".to_string());
 	}
@@ -658,7 +658,7 @@ struct Meter {
 }
 
 #[derive(Debug, Serialize)]
-struct System {
+pub struct System {
 	name: Option<Value>,
 	version: Option<Value>,
 	chain: Option<Value>,
