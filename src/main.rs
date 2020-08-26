@@ -1,5 +1,5 @@
-mod app;
-mod modules;
+
+use yee_utils_lib::app;
 
 fn main() {
 	let (app, module_manager) = app::build_app();

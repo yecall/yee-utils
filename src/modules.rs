@@ -9,7 +9,7 @@ mod block;
 mod completion;
 mod event;
 mod keystore;
-mod meter;
+pub mod meter;
 mod state;
 mod tx;
 mod usage;
