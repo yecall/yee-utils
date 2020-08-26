@@ -659,10 +659,10 @@ struct Meter {
 
 #[derive(Debug, Serialize)]
 pub struct System {
-	name: Option<Value>,
-	version: Option<Value>,
-	chain: Option<Value>,
-	health: Option<Value>,
+	pub name: Option<Value>,
+	pub version: Option<Value>,
+	pub chain: Option<Value>,
+	pub health: Option<Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -683,15 +683,15 @@ pub struct BlockShardInfo {
 
 #[derive(Debug, Serialize)]
 pub struct BlockPowInfo {
-	timestamp: u64,
-	time: String,
-	target: Hex,
-	diff: String,
+	pub timestamp: u64,
+	pub time: String,
+	pub target: Hex,
+	pub diff: String,
 }
 
 #[derive(Debug, Serialize)]
 pub struct BlockCrfgInfo {
-	authorities: Vec<(Hex, u64)>,
+	pub authorities: Vec<(Hex, u64)>,
 }
 
 mod cases {
