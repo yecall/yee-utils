@@ -665,7 +665,7 @@ pub struct System {
 	pub health: Option<Value>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct BlockInfo {
 	pub number: u64,
 	pub hash: Hex,
@@ -675,13 +675,13 @@ pub struct BlockInfo {
 	pub pow: Option<BlockPowInfo>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct BlockShardInfo {
 	pub shard_num: u16,
 	pub shard_count: u16,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct BlockPowInfo {
 	pub timestamp: u64,
 	pub time: String,
@@ -689,7 +689,7 @@ pub struct BlockPowInfo {
 	pub diff: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct BlockCrfgInfo {
 	pub authorities: Vec<(Hex, u64)>,
 }
