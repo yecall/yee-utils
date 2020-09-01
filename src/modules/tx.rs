@@ -220,10 +220,14 @@ fn compose(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	let (shard_num, shard_count) = shard_info.ok_or("Invalid shard info".to_string())?;
 
 	let secret_key = if keystore_path.starts_with("0x") {
-		let secret_key = match hex::decode(keystore_path.trim_start_matches("0x")) {
+		let mut secret_key = match hex::decode(keystore_path.trim_start_matches("0x")) {
 			Ok(v) => v,
 			Err(_) => return Err("Invalid hex secret key".to_string())
 		};
+		if secret_key.len() == 32 {
+			let key_pair = KeyPair::from_mini_secret_key(&secret_key.clone())?;
+			secret_key = key_pair.secret_key().to_vec();
+		}
 		if secret_key.len() != 64 {
 			return Err("Invalid hex secret key length".to_string())
 		}
