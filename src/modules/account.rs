@@ -1,7 +1,8 @@
 use clap::{Arg, ArgMatches, SubCommand};
+use parity_codec::{Decode, Encode};
 use rand::thread_rng;
 use rand::Rng;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use yee_primitives::{Address, AddressCodec, Hrp};
 use yee_sharding_primitives::utils;
 use yee_signer::KeyPair;
@@ -9,7 +10,7 @@ use yee_signer::KeyPair;
 use crate::modules::base::Hex;
 use crate::modules::{base, Command, Module};
 
-const SHARD_COUNT_LIST: [u16; 2] = [4, 8];
+pub const SHARD_COUNT_LIST: [u16; 2] = [4, 8];
 
 pub fn module<'a, 'b>() -> Module<'a, 'b> {
 	Module {
@@ -143,12 +144,6 @@ fn mini_secret_key(matches: &ArgMatches) -> Result<Vec<String>, String> {
 		.to_address(Hrp::TESTNET)
 		.map_err(|_e| "Address encode failed")?;
 
-	#[derive(Serialize)]
-	struct Shard {
-		shard_num: u16,
-		shard_count: u16,
-	}
-
 	let shard = SHARD_COUNT_LIST
 		.iter()
 		.map(|&shard_count| {
@@ -200,12 +195,6 @@ fn secret_key(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	let testnet_address = public_key
 		.to_address(Hrp::TESTNET)
 		.map_err(|_e| "Address encode failed")?;
-
-	#[derive(Serialize)]
-	struct Shard {
-		shard_num: u16,
-		shard_count: u16,
-	}
 
 	let shard = SHARD_COUNT_LIST
 		.iter()
@@ -260,12 +249,6 @@ fn address(matches: &ArgMatches) -> Result<Vec<String>, String> {
 
 	let (public_key, hrp) =
 		<[u8; 32]>::from_address(&address).map_err(|_| "Address decode failed")?;
-
-	#[derive(Serialize)]
-	struct Shard {
-		shard_num: u16,
-		shard_count: u16,
-	}
 
 	let shard = SHARD_COUNT_LIST
 		.iter()
@@ -325,10 +308,10 @@ pub fn generate_account(
 	}
 }
 
-#[derive(Serialize)]
+#[derive(Encode, Serialize, Decode, Deserialize, Clone, Debug)]
 pub struct Shard {
-	shard_num: u16,
-	shard_count: u16,
+	pub shard_num: u16,
+	pub shard_count: u16,
 }
 
 #[derive(Serialize)]
