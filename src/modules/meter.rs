@@ -13,6 +13,7 @@ use serde_json::Value;
 use substrate_primitives::U256;
 use tokio::runtime::Runtime;
 use yee_consensus_pow::{CompatibleDigestItem, PowSeal};
+use yee_primitives::Hrp;
 use yee_runtime::opaque::Block;
 use yee_sharding::ShardingDigestItem;
 
@@ -392,6 +393,28 @@ pub fn get_block_info(number: Number, rpc: &str) -> Result<BlockInfo, String> {
 	let block_info = arrange_block_info(block_info);
 
 	Ok(block_info)
+}
+
+pub fn get_hrp(rpc: &str) -> Result<Hrp, String> {
+	let mut runtime = Runtime::new().expect("qed");
+
+	let chain_info = runtime.block_on(get_chain_info_async(rpc))?;
+
+	let hrp = match chain_info.as_str() {
+		"MainNet" => Hrp::MAINNET,
+		_ => Hrp::TESTNET,
+	};
+
+	Ok(hrp)
+}
+
+async fn get_chain_info_async(rpc: &str) -> Result<String, String> {
+	let chain_info = base::rpc_call::<_, String>(rpc, "system_chain", &())
+		.await?
+		.result
+		.ok_or("decode failed".to_string())?;
+
+	Ok(chain_info)
 }
 
 async fn get_block_info_async(

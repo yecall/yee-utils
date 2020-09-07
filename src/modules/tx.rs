@@ -2,6 +2,7 @@ use std::cmp::min;
 use std::str::FromStr;
 
 use clap::{Arg, ArgMatches, SubCommand};
+use mut_static::MutStatic;
 use num_bigint::BigUint;
 use num_traits::cast::ToPrimitive;
 use parity_codec::alloc::borrow::Cow;
@@ -17,14 +18,18 @@ use yee_primitives::AddressCodec;
 use yee_primitives::Hrp;
 use yee_runtime::Event;
 use yee_sharding_primitives::utils;
-use yee_signer::tx::call::Call;
-use yee_signer::tx::types::{Era, Transaction, HASH_LEN};
+use yee_sharding_primitives::utils::shard_num_for_bytes;
+use yee_signer::tx::call::{self, Call};
+use yee_signer::tx::types::{Account, Era, Transaction, HASH_LEN};
 use yee_signer::tx::{build_call, build_tx};
 use yee_signer::{KeyPair, PUBLIC_KEY_LEN, SECRET_KEY_LEN};
 
+use lazy_static::lazy_static;
+
+use crate::modules::account::{Shard, SHARD_COUNT_LIST};
 use crate::modules::base::{get_rpc, Hex, RpcResponse};
 use crate::modules::keystore::get_keystore;
-use crate::modules::meter::{get_block_info, Number};
+use crate::modules::meter::{get_block_info, get_hrp, Number};
 use crate::modules::state::{get_map_storage_key_encode, get_value_storage_key};
 use crate::modules::{base, Command, Module};
 
@@ -222,14 +227,14 @@ fn compose(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	let secret_key = if keystore_path.starts_with("0x") {
 		let mut secret_key = match hex::decode(keystore_path.trim_start_matches("0x")) {
 			Ok(v) => v,
-			Err(_) => return Err("Invalid hex secret key".to_string())
+			Err(_) => return Err("Invalid hex secret key".to_string()),
 		};
 		if secret_key.len() == 32 {
 			let key_pair = KeyPair::from_mini_secret_key(&secret_key.clone())?;
 			secret_key = key_pair.secret_key().to_vec();
 		}
 		if secret_key.len() != 64 {
-			return Err("Invalid hex secret key length".to_string())
+			return Err("Invalid hex secret key length".to_string());
 		}
 		secret_key
 	} else {
@@ -339,7 +344,15 @@ fn submit(matches: &ArgMatches) -> Result<Vec<String>, String> {
 fn search(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	let rpc = &get_rpc(matches);
 
-	let best_number = get_block_info(Number::Best, rpc)?.number;
+	let hrp = get_hrp(rpc)?;
+	let block_info = get_block_info(Number::Best, rpc)?;
+	let best_number = block_info.number;
+	let shard = block_info.shard;
+	let shard_count = shard.expect("qed").shard_count;
+	SHARD_COUNT
+		.set(shard_count)
+		.map_err(|_| "Failed to set shard_count")?;
+	HRP.set(hrp).map_err(|_| "Failed to set hrp")?;
 
 	let expected_hash: Option<Vec<u8>> = match matches.value_of("HASH") {
 		Some(v) => {
@@ -518,6 +531,11 @@ fn search(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	base::output(&result)
 }
 
+lazy_static! {
+	pub static ref HRP: MutStatic<Hrp> = MutStatic::new();
+	pub static ref SHARD_COUNT: MutStatic<u16> = MutStatic::new();
+}
+
 #[derive(Serialize, Deserialize)]
 struct ComposeResult {
 	shard_num: u16,
@@ -608,6 +626,9 @@ enum BlockNumber {
 #[derive(Serialize)]
 struct SerdeSignature {
 	pub sender: Hex,
+	pub sender_address: String,
+	pub sender_testnet_address: String,
+	pub sender_shard: Vec<Shard>,
 	pub signature: Hex,
 	pub nonce: u64,
 	pub era: SerdeEra,
@@ -616,13 +637,107 @@ struct SerdeSignature {
 #[derive(Serialize)]
 struct SerdeTransaction {
 	pub signature: Option<SerdeSignature>,
-	pub call: Call,
+	pub call: SerdeCall,
+}
+
+#[derive(Serialize)]
+pub enum SerdeCall {
+	Timestamp(call::timestamp::Call),
+	Consensus(call::consensus::Call),
+	Pow(call::pow::Call),
+	Indices(call::indices::Call),
+	Balances(balances::Call),
+	Sharding(call::sharding::Call),
+	Crfg(call::crfg::Call),
+	FinalityTracker(call::finality_tracker::Call),
+	Assets(call::assets::Call),
+	Relay(call::relay::Call),
+	Storage(call::storage::Call),
+	Sudo(call::sudo::Call),
 }
 
 #[derive(Serialize)]
 pub enum SerdeEra {
 	Immortal,
 	Mortal(u64, u64),
+}
+
+impl From<Call> for SerdeCall {
+	fn from(t: Call) -> Self {
+		match t {
+			Call::Timestamp(call) => SerdeCall::Timestamp(call),
+			Call::Consensus(call) => SerdeCall::Consensus(call),
+			Call::Pow(call) => SerdeCall::Pow(call),
+			Call::Indices(call) => SerdeCall::Indices(call),
+			Call::Balances(call) => SerdeCall::Balances(call.into()),
+			Call::Sharding(call) => SerdeCall::Sharding(call),
+			Call::Crfg(call) => SerdeCall::Crfg(call),
+			Call::FinalityTracker(call) => SerdeCall::FinalityTracker(call),
+			Call::Assets(call) => SerdeCall::Assets(call),
+			Call::Relay(call) => SerdeCall::Relay(call),
+			Call::Storage(call) => SerdeCall::Storage(call),
+			Call::Sudo(call) => SerdeCall::Sudo(call),
+		}
+	}
+}
+
+// hack balance
+mod balances {
+	use crate::modules::account::Shard;
+
+	use super::Account;
+	use super::{Compact, Decode, Deserialize, Encode, Serialize};
+
+	#[derive(Encode, Decode, Clone, Debug, Serialize, Deserialize)]
+	pub enum Call {
+		Transfer(Transfer),
+		SetBalance(super::call::balances::SetBalance),
+	}
+
+	#[derive(Encode, Decode, Clone, Debug, Serialize, Deserialize)]
+	pub struct Transfer {
+		pub dest: Account,
+		pub dest_address: String,
+		pub dest_testnet_address: String,
+		pub dest_shard: Vec<Shard>,
+		pub value: Compact<u128>,
+	}
+}
+
+impl From<call::balances::Call> for balances::Call {
+	fn from(t: call::balances::Call) -> Self {
+		match t {
+			call::balances::Call::Transfer(transfer) => balances::Call::Transfer(transfer.into()),
+			call::balances::Call::SetBalance(set_balance) => {
+				balances::Call::SetBalance(set_balance)
+			}
+		}
+	}
+}
+
+impl From<call::balances::Transfer> for balances::Transfer {
+	fn from(t: call::balances::Transfer) -> Self {
+		let public = (t.dest.0)[1..].to_vec();
+		let address = public.to_address(Hrp::MAINNET).expect("qed").0;
+		let testnet_address = public.to_address(Hrp::TESTNET).expect("qed").0;
+		let shard = SHARD_COUNT_LIST
+			.iter()
+			.map(|&shard_count| {
+				let shard_num = shard_num_for_bytes(public.as_slice(), shard_count).expect("qed");
+				Shard {
+					shard_num,
+					shard_count,
+				}
+			})
+			.collect::<Vec<_>>();
+		balances::Transfer {
+			dest: t.dest,
+			value: t.value,
+			dest_address: address,
+			dest_testnet_address: testnet_address,
+			dest_shard: shard,
+		}
+	}
 }
 
 impl From<Era> for SerdeEra {
@@ -636,17 +751,35 @@ impl From<Era> for SerdeEra {
 
 impl From<Transaction> for SerdeTransaction {
 	fn from(t: Transaction) -> Self {
-		let signature = t
-			.signature
-			.map(|(address, sig, nonce, era)| SerdeSignature {
-				sender: address.0.to_vec().into(),
+		let signature = t.signature.map(|(account, sig, nonce, era)| {
+			let public = account.0[1..].to_vec();
+			let address = public.to_address(Hrp::MAINNET).expect("qed").0;
+			let testnet_address = public.to_address(Hrp::TESTNET).expect("qed").0;
+			let shard = SHARD_COUNT_LIST
+				.iter()
+				.map(|&shard_count| {
+					let shard_num =
+						shard_num_for_bytes(public.as_slice(), shard_count).expect("qed");
+					Shard {
+						shard_num,
+						shard_count,
+					}
+				})
+				.collect::<Vec<_>>();
+
+			SerdeSignature {
+				sender: account.0.to_vec().into(),
+				sender_address: address,
+				sender_testnet_address: testnet_address,
+				sender_shard: shard,
 				signature: sig.to_vec().into(),
 				nonce: nonce.0,
 				era: era.into(),
-			});
+			}
+		});
 		Self {
 			signature,
-			call: t.call,
+			call: t.call.into(),
 		}
 	}
 }
