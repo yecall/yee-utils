@@ -20,7 +20,7 @@ use yee_runtime::Event;
 use yee_sharding_primitives::utils;
 use yee_sharding_primitives::utils::shard_num_for_bytes;
 use yee_signer::tx::call::{self, Call};
-use yee_signer::tx::types::{Account, Era, Transaction, HASH_LEN};
+use yee_signer::tx::types::{Account, Bytes, Era, Transaction, HASH_LEN};
 use yee_signer::tx::{build_call, build_tx};
 use yee_signer::{KeyPair, PUBLIC_KEY_LEN, SECRET_KEY_LEN};
 
@@ -178,6 +178,27 @@ fn sub_commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
 						.required(false),
 				),
 			f: search,
+		},
+		Command {
+			app: SubCommand::with_name("make_set_code_call")
+				.about("Make set code call")
+				.arg(
+					Arg::with_name("CODE_PATH")
+						.long("code-path")
+						.short("c")
+						.help("Code path")
+						.takes_value(true)
+						.required(true),
+				)
+				.arg(
+					Arg::with_name("OUTPUT_PATH")
+						.long("output-path")
+						.short("o")
+						.help("Output path")
+						.takes_value(true)
+						.required(true),
+				),
+			f: make_set_code_call,
 		},
 	]
 }
@@ -531,6 +552,28 @@ fn search(matches: &ArgMatches) -> Result<Vec<String>, String> {
 	base::output(&result)
 }
 
+fn make_set_code_call(matches: &ArgMatches) -> Result<Vec<String>, String> {
+	let code_path = matches.value_of("CODE_PATH").expect("qed");
+
+	let output_path = matches.value_of("OUTPUT_PATH").expect("qed");
+
+	let code = base::get_from_file(code_path)?;
+
+	let set_code_call = Call::Consensus(call::consensus::Call::SetCode(call::consensus::SetCode {
+		new: Bytes(code),
+	}));
+
+	let call = Call::Sudo(call::sudo::Call::Sudo(call::sudo::Sudo {
+		proposal: Box::new(set_code_call),
+	}));
+
+	let call_json = serde_json::to_vec(&call).map_err(|_| "Encode error")?;
+
+	base::put_to_file(&call_json, output_path)?;
+
+	base::output("Ok")
+}
+
 lazy_static! {
 	pub static ref HRP: MutStatic<Hrp> = MutStatic::new();
 	pub static ref SHARD_COUNT: MutStatic<u16> = MutStatic::new();
@@ -691,7 +734,6 @@ mod balances {
 	#[derive(Encode, Decode, Clone, Debug, Serialize, Deserialize)]
 	pub enum Call {
 		Transfer(Transfer),
-		SetBalance(super::call::balances::SetBalance),
 	}
 
 	#[derive(Encode, Decode, Clone, Debug, Serialize, Deserialize)]
@@ -708,9 +750,6 @@ impl From<call::balances::Call> for balances::Call {
 	fn from(t: call::balances::Call) -> Self {
 		match t {
 			call::balances::Call::Transfer(transfer) => balances::Call::Transfer(transfer.into()),
-			call::balances::Call::SetBalance(set_balance) => {
-				balances::Call::SetBalance(set_balance)
-			}
 		}
 	}
 }
