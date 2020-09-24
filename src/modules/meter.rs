@@ -21,189 +21,189 @@ use crate::modules::base::{get_rpc, Hex};
 use crate::modules::{base, Command, Module};
 
 pub fn module<'a, 'b>() -> Module<'a, 'b> {
-	Module {
-		desc: "Meter".to_string(),
-		commands: commands(),
-		get_cases: cases::cases,
-	}
+    Module {
+        desc: "Meter".to_string(),
+        commands: commands(),
+        get_cases: cases::cases,
+    }
 }
 
 pub fn commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
-	vec![Command {
-		app: SubCommand::with_name("meter")
-			.about("Meter")
-			.arg(
-				Arg::with_name("RPC")
-					.long("rpc")
-					.short("r")
-					.help("RPC address")
-					.takes_value(true)
-					.required(true),
-			)
-			.arg(
-				Arg::with_name("BEST")
-					.long("best")
-					.help("Best block")
-					.required(false),
-			)
-			.arg(
-				Arg::with_name("FINALIZED")
-					.long("finalized")
-					.help("Finalized block")
-					.required(false),
-			)
-			.arg(
-				Arg::with_name("SYSTEM")
-					.long("system")
-					.help("System: name, version, chain, health")
-					.required(false),
-			)
-			.arg(
-				Arg::with_name("PEERS")
-					.long("peers")
-					.help("Peers")
-					.required(false),
-			)
-			.arg(
-				Arg::with_name("NETWORK_STATE")
-					.long("network-state")
-					.help("Network state")
-					.required(false),
-			)
-			.arg(
-				Arg::with_name("FOREIGN_NETWORK_STATE")
-					.long("foreign-network-state")
-					.help("Foreign network state")
-					.required(false),
-			)
-			.arg(
-				Arg::with_name("RUNTIME")
-					.long("runtime")
-					.help("Runtime")
-					.required(false),
-			)
-			.arg(
-				Arg::with_name("CRFG")
-					.long("crfg")
-					.help("CRFG")
-					.required(false),
-			)
-			.arg(
-				Arg::with_name("FOREIGN_STATUS")
-					.long("foreign-status")
-					.help("Foreign status")
-					.required(false),
-			)
-			.arg(
-				Arg::with_name("CONFIG")
-					.long("config")
-					.help("Config")
-					.required(false),
-			),
-		f: meter,
-	}]
+    vec![Command {
+        app: SubCommand::with_name("meter")
+            .about("Meter")
+            .arg(
+                Arg::with_name("RPC")
+                    .long("rpc")
+                    .short("r")
+                    .help("RPC address")
+                    .takes_value(true)
+                    .required(true),
+            )
+            .arg(
+                Arg::with_name("BEST")
+                    .long("best")
+                    .help("Best block")
+                    .required(false),
+            )
+            .arg(
+                Arg::with_name("FINALIZED")
+                    .long("finalized")
+                    .help("Finalized block")
+                    .required(false),
+            )
+            .arg(
+                Arg::with_name("SYSTEM")
+                    .long("system")
+                    .help("System: name, version, chain, health")
+                    .required(false),
+            )
+            .arg(
+                Arg::with_name("PEERS")
+                    .long("peers")
+                    .help("Peers")
+                    .required(false),
+            )
+            .arg(
+                Arg::with_name("NETWORK_STATE")
+                    .long("network-state")
+                    .help("Network state")
+                    .required(false),
+            )
+            .arg(
+                Arg::with_name("FOREIGN_NETWORK_STATE")
+                    .long("foreign-network-state")
+                    .help("Foreign network state")
+                    .required(false),
+            )
+            .arg(
+                Arg::with_name("RUNTIME")
+                    .long("runtime")
+                    .help("Runtime")
+                    .required(false),
+            )
+            .arg(
+                Arg::with_name("CRFG")
+                    .long("crfg")
+                    .help("CRFG")
+                    .required(false),
+            )
+            .arg(
+                Arg::with_name("FOREIGN_STATUS")
+                    .long("foreign-status")
+                    .help("Foreign status")
+                    .required(false),
+            )
+            .arg(
+                Arg::with_name("CONFIG")
+                    .long("config")
+                    .help("Config")
+                    .required(false),
+            ),
+        f: meter,
+    }]
 }
 
 fn meter(matches: &ArgMatches) -> Result<Vec<String>, String> {
-	let rpc = &get_rpc(matches);
+    let rpc = &get_rpc(matches);
 
-	let mut enable_list = EnableList {
-		best: matches.is_present("BEST"),
-		finalized: matches.is_present("FINALIZED"),
-		system: matches.is_present("SYSTEM"),
-		peers: matches.is_present("PEERS"),
-		network_state: matches.is_present("NETWORK_STATE"),
-		foreign_network_state: matches.is_present("FOREIGN_NETWORK_STATE"),
-		runtime: matches.is_present("RUNTIME"),
-		crfg: matches.is_present("CRFG"),
-		foreign_status: matches.is_present("FOREIGN_STATUS"),
-		config: matches.is_present("CONFIG"),
-	};
+    let mut enable_list = EnableList {
+        best: matches.is_present("BEST"),
+        finalized: matches.is_present("FINALIZED"),
+        system: matches.is_present("SYSTEM"),
+        peers: matches.is_present("PEERS"),
+        network_state: matches.is_present("NETWORK_STATE"),
+        foreign_network_state: matches.is_present("FOREIGN_NETWORK_STATE"),
+        runtime: matches.is_present("RUNTIME"),
+        crfg: matches.is_present("CRFG"),
+        foreign_status: matches.is_present("FOREIGN_STATUS"),
+        config: matches.is_present("CONFIG"),
+    };
 
-	if enable_list.all_false() {
-		enable_list = EnableList {
-			best: true,
-			finalized: true,
-			system: true,
-			peers: true,
-			network_state: true,
-			foreign_network_state: true,
-			runtime: true,
-			crfg: true,
-			foreign_status: true,
-			config: true,
-		}
-	}
+    if enable_list.all_false() {
+        enable_list = EnableList {
+            best: true,
+            finalized: true,
+            system: true,
+            peers: true,
+            network_state: true,
+            foreign_network_state: true,
+            runtime: true,
+            crfg: true,
+            foreign_status: true,
+            config: true,
+        }
+    }
 
-	let mut runtime = Runtime::new().expect("qed");
+    let mut runtime = Runtime::new().expect("qed");
 
-	let meter = runtime.block_on(get_meter(rpc, &enable_list));
+    let meter = runtime.block_on(get_meter(rpc, &enable_list));
 
-	base::output(meter)
+    base::output(meter)
 }
 
 struct EnableList {
-	best: bool,
-	finalized: bool,
-	system: bool,
-	peers: bool,
-	network_state: bool,
-	foreign_network_state: bool,
-	runtime: bool,
-	crfg: bool,
-	foreign_status: bool,
-	config: bool,
+    best: bool,
+    finalized: bool,
+    system: bool,
+    peers: bool,
+    network_state: bool,
+    foreign_network_state: bool,
+    runtime: bool,
+    crfg: bool,
+    foreign_status: bool,
+    config: bool,
 }
 
 impl EnableList {
-	fn all_false(&self) -> bool {
-		!self.best
-			&& !self.finalized
-			&& !self.system
-			&& !self.peers
-			&& !self.network_state
-			&& !self.foreign_network_state
-			&& !self.runtime
-			&& !self.crfg
-			&& !self.foreign_status
-			&& !self.config
-	}
+    fn all_false(&self) -> bool {
+        !self.best
+            && !self.finalized
+            && !self.system
+            && !self.peers
+            && !self.network_state
+            && !self.foreign_network_state
+            && !self.runtime
+            && !self.crfg
+            && !self.foreign_status
+            && !self.config
+    }
 }
 
 async fn get_meter(rpc: &str, enable_list: &EnableList) -> Meter {
-	let best = meter_get_best(rpc, enable_list.best);
+    let best = meter_get_best(rpc, enable_list.best);
 
-	let finalized = meter_get_finalized(rpc, enable_list.finalized);
+    let finalized = meter_get_finalized(rpc, enable_list.finalized);
 
-	let system = meter_get_system(rpc, enable_list.system);
+    let system = meter_get_system(rpc, enable_list.system);
 
-	let peers = meter_get_peers(rpc, enable_list.peers);
+    let peers = meter_get_peers(rpc, enable_list.peers);
 
-	let network_state = meter_get_network_state(rpc, enable_list.network_state);
+    let network_state = meter_get_network_state(rpc, enable_list.network_state);
 
-	let foreign_network_state =
-		meter_get_foreign_network_state(rpc, enable_list.foreign_network_state);
+    let foreign_network_state =
+        meter_get_foreign_network_state(rpc, enable_list.foreign_network_state);
 
-	let runtime = meter_get_runtime(rpc, enable_list.runtime);
+    let runtime = meter_get_runtime(rpc, enable_list.runtime);
 
-	let crfg = meter_get_crfg(rpc, enable_list.crfg);
+    let crfg = meter_get_crfg(rpc, enable_list.crfg);
 
-	let foreign_status = meter_get_foreign_status(rpc, enable_list.foreign_status);
+    let foreign_status = meter_get_foreign_status(rpc, enable_list.foreign_status);
 
-	let config = meter_get_config(rpc, enable_list.config);
+    let config = meter_get_config(rpc, enable_list.config);
 
-	let (
-		best,
-		finalized,
-		system,
-		peers,
-		network_state,
-		foreign_network_state,
-		runtime,
-		crfg,
-		foreign_status,
-		config,
-	) = tokio::join!(
+    let (
+        best,
+        finalized,
+        system,
+        peers,
+        network_state,
+        foreign_network_state,
+        runtime,
+        crfg,
+        foreign_status,
+        config,
+    ) = tokio::join!(
 		best,
 		finalized,
 		system,
@@ -216,441 +216,450 @@ async fn get_meter(rpc: &str, enable_list: &EnableList) -> Meter {
 		config
 	);
 
-	let meter = Meter {
-		best: best.ok(),
-		finalized: finalized.ok(),
-		system: system.ok(),
-		peers: peers.ok(),
-		network_state: network_state.ok(),
-		foreign_network_state: foreign_network_state.ok(),
-		runtime: runtime.ok(),
-		crfg: crfg.ok(),
-		foreign_status: foreign_status.ok(),
-		config: config.ok(),
-	};
+    let meter = Meter {
+        best: best.ok(),
+        finalized: finalized.ok(),
+        system: system.ok(),
+        peers: peers.ok(),
+        network_state: network_state.ok(),
+        foreign_network_state: foreign_network_state.ok(),
+        runtime: runtime.ok(),
+        crfg: crfg.ok(),
+        foreign_status: foreign_status.ok(),
+        config: config.ok(),
+    };
 
-	meter
+    meter
 }
 
 pub async fn meter_get_best(rpc: &str, enabled: bool) -> Result<BlockInfo, String> {
-	if !enabled {
-		return Err("disabled".to_string());
-	}
-	let info = get_block_info_async(Number::Best, rpc).await?;
+    if !enabled {
+        return Err("disabled".to_string());
+    }
+    let info = get_block_info_async(Number::Best, rpc).await?;
 
-	let info = arrange_block_info(info);
+    let info = arrange_block_info(info);
 
-	Ok(info)
+    Ok(info)
 }
 
 pub async fn meter_get_finalized(rpc: &str, enabled: bool) -> Result<BlockInfo, String> {
-	if !enabled {
-		return Err("disabled".to_string());
-	}
-	let info = get_block_info_async(Number::Finalized, rpc).await?;
+    if !enabled {
+        return Err("disabled".to_string());
+    }
+    let info = get_block_info_async(Number::Finalized, rpc).await?;
 
-	let info = arrange_block_info(info);
+    let info = arrange_block_info(info);
 
-	Ok(info)
+    Ok(info)
 }
 
 pub async fn meter_get_system(rpc: &str, enabled: bool) -> Result<System, String> {
-	if !enabled {
-		return Err("disabled".to_string());
-	}
-	let name = base::rpc_call::<_, Value>(rpc, "system_name", &());
+    if !enabled {
+        return Err("disabled".to_string());
+    }
+    let name = base::rpc_call::<_, Value>(rpc, "system_name", &());
 
-	let version = base::rpc_call::<_, Value>(rpc, "system_version", &());
+    let version = base::rpc_call::<_, Value>(rpc, "system_version", &());
 
-	let chain = base::rpc_call::<_, Value>(rpc, "system_chain", &());
+    let chain = base::rpc_call::<_, Value>(rpc, "system_chain", &());
 
-	let health = base::rpc_call::<_, Value>(rpc, "system_health", &());
+    let health = base::rpc_call::<_, Value>(rpc, "system_health", &());
 
-	let result = join_all(vec![name, version, chain, health]).await;
+    let result = join_all(vec![name, version, chain, health]).await;
 
-	let mut result = result.into_iter().map(Some).collect::<Vec<_>>();
+    let mut result = result.into_iter().map(Some).collect::<Vec<_>>();
 
-	let extract = |x: Option<Result<base::RpcResponse<Value>, String>>| -> Option<Value> {
-		match x {
-			Some(Ok(x)) => x.result,
-			_ => None,
-		}
-	};
+    let extract = |x: Option<Result<base::RpcResponse<Value>, String>>| -> Option<Value> {
+        match x {
+            Some(Ok(x)) => x.result,
+            _ => None,
+        }
+    };
 
-	let system = System {
-		name: extract(result[0].take()),
-		version: extract(result[1].take()),
-		chain: extract(result[2].take()),
-		health: extract(result[3].take()),
-	};
+    let system = System {
+        name: extract(result[0].take()),
+        version: extract(result[1].take()),
+        chain: extract(result[2].take()),
+        health: extract(result[3].take()),
+    };
 
-	Ok(system)
+    Ok(system)
 }
 
 pub async fn meter_get_peers(rpc: &str, enabled: bool) -> Result<Value, String> {
-	if !enabled {
-		return Err("disabled".to_string());
-	}
-	let result = base::rpc_call::<_, Value>(rpc, "system_peers", &())
-		.await?
-		.result;
+    if !enabled {
+        return Err("disabled".to_string());
+    }
+    let result = base::rpc_call::<_, Value>(rpc, "system_peers", &())
+        .await?
+        .result;
 
-	let result = result.ok_or("none")?;
+    let result = result.ok_or("none")?;
 
-	Ok(result)
+    Ok(result)
 }
 
 pub async fn meter_get_network_state(rpc: &str, enabled: bool) -> Result<Value, String> {
-	if !enabled {
-		return Err("disabled".to_string());
-	}
-	let result = base::rpc_call::<_, Value>(rpc, "system_networkState", &())
-		.await?
-		.result;
+    if !enabled {
+        return Err("disabled".to_string());
+    }
+    let result = base::rpc_call::<_, Value>(rpc, "system_networkState", &())
+        .await?
+        .result;
 
-	let result = result.ok_or("none")?;
+    let result = result.ok_or("none")?;
 
-	Ok(result)
+    Ok(result)
 }
 
 pub async fn meter_get_foreign_network_state(rpc: &str, enabled: bool) -> Result<Value, String> {
-	if !enabled {
-		return Err("disabled".to_string());
-	}
-	let result = base::rpc_call::<_, Value>(rpc, "system_foreignNetworkState", &())
-		.await?
-		.result;
+    if !enabled {
+        return Err("disabled".to_string());
+    }
+    let result = base::rpc_call::<_, Value>(rpc, "system_foreignNetworkState", &())
+        .await?
+        .result;
 
-	let result = result.ok_or("none")?;
+    let result = result.ok_or("none")?;
 
-	Ok(result)
+    Ok(result)
 }
 
 pub async fn meter_get_runtime(rpc: &str, enabled: bool) -> Result<Value, String> {
-	if !enabled {
-		return Err("disabled".to_string());
-	}
-	let result = base::rpc_call::<_, Value>(rpc, "state_getRuntimeVersion", &())
-		.await?
-		.result;
+    if !enabled {
+        return Err("disabled".to_string());
+    }
+    let result = base::rpc_call::<_, Value>(rpc, "state_getRuntimeVersion", &())
+        .await?
+        .result;
 
-	let result = result.ok_or("none")?;
+    let result = result.ok_or("none")?;
 
-	Ok(result)
+    Ok(result)
 }
 
 pub async fn meter_get_crfg(rpc: &str, enabled: bool) -> Result<Value, String> {
-	if !enabled {
-		return Err("disabled".to_string());
-	}
-	let result = base::rpc_call::<_, Value>(rpc, "crfg_state", &())
-		.await?
-		.result;
+    if !enabled {
+        return Err("disabled".to_string());
+    }
+    let result = base::rpc_call::<_, Value>(rpc, "crfg_state", &())
+        .await?
+        .result;
 
-	let result = result.ok_or("none")?;
+    let result = result.ok_or("none")?;
 
-	Ok(result)
+    Ok(result)
 }
 
 pub async fn meter_get_foreign_status(rpc: &str, enabled: bool) -> Result<Value, String> {
-	if !enabled {
-		return Err("disabled".to_string());
-	}
-	let result = base::rpc_call::<_, Value>(rpc, "system_foreignStatus", &())
-		.await?
-		.result;
+    if !enabled {
+        return Err("disabled".to_string());
+    }
+    let result = base::rpc_call::<_, Value>(rpc, "system_foreignStatus", &())
+        .await?
+        .result;
 
-	let result = result.ok_or("none")?;
+    let result = result.ok_or("none")?;
 
-	Ok(result)
+    Ok(result)
 }
 
 pub async fn meter_get_config(rpc: &str, enabled: bool) -> Result<Value, String> {
-	if !enabled {
-		return Err("disabled".to_string());
-	}
-	let result = base::rpc_call::<_, Value>(rpc, "system_config", &())
-		.await?
-		.result;
+    if !enabled {
+        return Err("disabled".to_string());
+    }
+    let result = base::rpc_call::<_, Value>(rpc, "system_config", &())
+        .await?
+        .result;
 
-	let result = result.ok_or("none")?;
+    let result = result.ok_or("none")?;
 
-	Ok(result)
+    Ok(result)
 }
 
 pub enum Number {
-	#[allow(dead_code)]
-	Number(u64),
-	Best,
-	Finalized,
+    #[allow(dead_code)]
+    Number(u64),
+    Best,
+    Finalized,
 }
 
 pub fn get_block_info(number: Number, rpc: &str) -> Result<BlockInfo, String> {
-	let mut runtime = Runtime::new().expect("qed");
+    let mut runtime = Runtime::new().expect("qed");
 
-	let block_info = runtime.block_on(get_block_info_async(number, rpc))?;
+    let block_info = runtime.block_on(get_block_info_async(number, rpc))?;
 
-	let block_info = arrange_block_info(block_info);
+    let block_info = arrange_block_info(block_info);
 
-	Ok(block_info)
+    Ok(block_info)
 }
 
 pub fn get_hrp(rpc: &str) -> Result<Hrp, String> {
-	let mut runtime = Runtime::new().expect("qed");
+    let mut runtime = Runtime::new().expect("qed");
 
-	let chain_info = runtime.block_on(get_chain_info_async(rpc))?;
+    let chain_info = runtime.block_on(get_chain_info_async(rpc))?;
 
-	let hrp = match chain_info.as_str() {
-		"MainNet" => Hrp::MAINNET,
-		_ => Hrp::TESTNET,
-	};
+    let hrp = match chain_info.as_str() {
+        "MainNet" => Hrp::MAINNET,
+        _ => Hrp::TESTNET,
+    };
 
-	Ok(hrp)
+    Ok(hrp)
 }
 
 async fn get_chain_info_async(rpc: &str) -> Result<String, String> {
-	let chain_info = base::rpc_call::<_, String>(rpc, "system_chain", &())
-		.await?
-		.result
-		.ok_or("decode failed".to_string())?;
+    let chain_info = base::rpc_call::<_, String>(rpc, "system_chain", &())
+        .await?
+        .result
+        .ok_or("decode failed".to_string())?;
 
-	Ok(chain_info)
+    Ok(chain_info)
 }
 
 async fn get_block_info_async(
-	number: Number,
-	rpc: &str,
+    number: Number,
+    rpc: &str,
 ) -> Result<
-	(
-		u64,
-		Hex,
-		Option<(u16, u16)>,
-		Option<u64>,
-		Option<(u64, Vec<(AuthorityId, u64)>)>,
-		Option<PowSeal<Block, AuthorityId>>,
-	),
-	String,
+    (
+        u64,
+        Hex,
+        Option<(u16, u16)>,
+        Option<u64>,
+		Option<BlockCrfgInfo>,
+        Option<PowSeal<Block, AuthorityId>>,
+    ),
+    String,
 > {
-	let (header, number, hash) = match number {
-		Number::Number(number) => {
-			let hash = base::rpc_call::<_, String>(rpc, "chain_getBlockHash", &[number])
-				.await?
-				.result
-				.ok_or("decode failed".to_string())?;
-			let header = base::rpc_call::<_, Value>(rpc, "chain_getHeader", &[&hash])
-				.await?
-				.result
-				.ok_or("decode failed".to_string())?;
-			let hash = Hex::from_str(&hash).expect("qed");
-			(header, number, hash)
-		}
-		Number::Best => {
-			let header = base::rpc_call::<_, Value>(rpc, "chain_getHeader", &())
-				.await?
-				.result
-				.ok_or("decode failed".to_string())?;
-			let number_hex = header
-				.as_object()
-				.ok_or("none error".to_string())?
-				.get("number")
-				.ok_or("none error".to_string())?
-				.as_str()
-				.ok_or("none error".to_string())?;
-			let number = {
-				let tmp = number_hex.trim_start_matches("0x");
-				let tmp = u64::from_str_radix(tmp, 16).map_err(|_| "Decode failed")?;
-				tmp
-			};
-			let hash = base::rpc_call::<_, String>(rpc, "chain_getBlockHash", &[number])
-				.await?
-				.result
-				.ok_or("decode failed".to_string())?;
-			let hash = Hex::from_str(&hash).expect("qed");
-			(header, number, hash)
-		}
-		Number::Finalized => {
-			let hash = base::rpc_call::<_, String>(rpc, "chain_getFinalizedHead", &())
-				.await?
-				.result
-				.ok_or("decode failed".to_string())?;
-			let header = base::rpc_call::<_, Value>(rpc, "chain_getHeader", &[&hash])
-				.await?
-				.result
-				.ok_or("decode failed".to_string())?;
-			let number_hex = header
-				.as_object()
-				.ok_or("none error".to_string())?
-				.get("number")
-				.ok_or("none error".to_string())?
-				.as_str()
-				.ok_or("none error".to_string())?;
-			let number = {
-				let tmp = number_hex.trim_start_matches("0x");
-				let tmp = u64::from_str_radix(tmp, 16).map_err(|_| "Decode failed")?;
-				tmp
-			};
-			let hash = Hex::from_str(&hash).expect("qed");
-			(header, number, hash)
-		}
-	};
+    let (header, number, hash) = match number {
+        Number::Number(number) => {
+            let hash = base::rpc_call::<_, String>(rpc, "chain_getBlockHash", &[number])
+                .await?
+                .result
+                .ok_or("decode failed".to_string())?;
+            let header = base::rpc_call::<_, Value>(rpc, "chain_getHeader", &[&hash])
+                .await?
+                .result
+                .ok_or("decode failed".to_string())?;
+            let hash = Hex::from_str(&hash).expect("qed");
+            (header, number, hash)
+        }
+        Number::Best => {
+            let header = base::rpc_call::<_, Value>(rpc, "chain_getHeader", &())
+                .await?
+                .result
+                .ok_or("decode failed".to_string())?;
+            let number_hex = header
+                .as_object()
+                .ok_or("none error".to_string())?
+                .get("number")
+                .ok_or("none error".to_string())?
+                .as_str()
+                .ok_or("none error".to_string())?;
+            let number = {
+                let tmp = number_hex.trim_start_matches("0x");
+                let tmp = u64::from_str_radix(tmp, 16).map_err(|_| "Decode failed")?;
+                tmp
+            };
+            let hash = base::rpc_call::<_, String>(rpc, "chain_getBlockHash", &[number])
+                .await?
+                .result
+                .ok_or("decode failed".to_string())?;
+            let hash = Hex::from_str(&hash).expect("qed");
+            (header, number, hash)
+        }
+        Number::Finalized => {
+            let hash = base::rpc_call::<_, String>(rpc, "chain_getFinalizedHead", &())
+                .await?
+                .result
+                .ok_or("decode failed".to_string())?;
+            let header = base::rpc_call::<_, Value>(rpc, "chain_getHeader", &[&hash])
+                .await?
+                .result
+                .ok_or("decode failed".to_string())?;
+            let number_hex = header
+                .as_object()
+                .ok_or("none error".to_string())?
+                .get("number")
+                .ok_or("none error".to_string())?
+                .as_str()
+                .ok_or("none error".to_string())?;
+            let number = {
+                let tmp = number_hex.trim_start_matches("0x");
+                let tmp = u64::from_str_radix(tmp, 16).map_err(|_| "Decode failed")?;
+                tmp
+            };
+            let hash = Hex::from_str(&hash).expect("qed");
+            (header, number, hash)
+        }
+    };
 
-	const CRFG_LOG_PREFIX: u8 = 3;
+    const CRFG_LOG_PREFIX: u8 = 3;
 
-	let digest = header
-		.as_object()
-		.ok_or("none error".to_string())?
-		.get("digest")
-		.ok_or("none error".to_string())?;
+    let digest = header
+        .as_object()
+        .ok_or("none error".to_string())?
+        .get("digest")
+        .ok_or("none error".to_string())?;
 
-	let logs = get_logs(digest)?;
+    let logs = get_logs(digest)?;
 
-	let shard_info: Option<(u16, u16)> = logs
-		.iter()
-		.filter_map(ShardingDigestItem::as_sharding_info)
-		.next();
+    let shard_info: Option<(u16, u16)> = logs
+        .iter()
+        .filter_map(ShardingDigestItem::as_sharding_info)
+        .next();
 
-	let finalized_number: Option<u64> = logs
-		.iter()
-		.filter_map(FinalityTrackerDigestItem::as_finality_tracker)
-		.next();
+    let finalized_number: Option<u64> = logs
+        .iter()
+        .filter_map(FinalityTrackerDigestItem::as_finality_tracker)
+        .next();
 
-	let authorities = logs
-		.iter()
-		.filter_map(|x| match x {
-			DigestItem::Other(data)
-				if data.len() >= 2 && data[0] == CRFG_LOG_PREFIX && data[1] == 0 =>
-			{
-				let input = &mut &data[2..];
-				let x: (u64, Vec<(AuthorityId, u64)>) = Decode::decode(input)?;
-				Some(x)
-			}
-			_ => None,
-		})
-		.next()
-		.map(arrange_authorities);
+    let signals = logs
+        .iter()
+        .filter_map(|x| match x {
+            DigestItem::Other(data)
+            if data.len() >= 2 && data[0] == CRFG_LOG_PREFIX =>
+                {
+                    let input = &mut &data[2..];
+                    match data[1] {
+                        0 => {
+                            let (delay, authorities): (u64, Vec<(AuthorityId, u64)>) = Decode::decode(input)?;
+                            let authorities = arrange_authorities(authorities);
+                            let authorities = authorities.into_iter().map(|(a, b)| (a.to_vec().into(), b)).collect::<Vec<_>>();
+                            Some(CrfgSignal::AuthoritiesChangeSignal(delay, authorities))
+                        }
+                        1 => {
+                            let (median, delay, authorities): (u64, u64, Vec<(AuthorityId, u64)>) = Decode::decode(input)?;
+                            let authorities = arrange_authorities(authorities);
+                            let authorities = authorities.into_iter().map(|(a, b)| (a.to_vec().into(), b)).collect::<Vec<_>>();
+                            Some(CrfgSignal::ForcedAuthoritiesChangeSignal(median, delay, authorities))
+                        }
+                        2 => {
+                            let number: u64 = Decode::decode(input)?;
+                            Some(CrfgSignal::SkipSignal(number))
+                        }
+                        _ => None,
+                    }
+                }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
 
-	let pow: Option<PowSeal<Block, AuthorityId>> = logs
-		.iter()
-		.filter_map(CompatibleDigestItem::as_pow_seal)
-		.next();
+    let crfg = Some(BlockCrfgInfo {
+        signals
+    });
 
-	Ok((number, hash, shard_info, finalized_number, authorities, pow))
+    let pow: Option<PowSeal<Block, AuthorityId>> = logs
+        .iter()
+        .filter_map(CompatibleDigestItem::as_pow_seal)
+        .next();
+
+    Ok((number, hash, shard_info, finalized_number, crfg, pow))
 }
 
 fn get_logs(digest: &Value) -> Result<Vec<DigestItem<Hash, AuthorityId, ()>>, String> {
-	let logs = digest
-		.as_object()
-		.ok_or("none error".to_string())?
-		.get("logs")
-		.ok_or("none error".to_string())?
-		.as_array()
-		.ok_or("none error".to_string())?
-		.iter()
-		.filter_map(|x| {
-			let x = x.as_str();
-			match x {
-				Some(x) => {
-					let x = x.trim_start_matches("0x");
-					match hex::decode(x) {
-						Ok(x) => {
-							let x: Option<DigestItem<Hash, AuthorityId, ()>> =
-								Decode::decode(&mut &x[..]);
-							x
-						}
-						Err(_) => None,
-					}
-				}
-				None => None,
-			}
-		})
-		.collect::<Vec<_>>();
-	Ok(logs)
+    let logs = digest
+        .as_object()
+        .ok_or("none error".to_string())?
+        .get("logs")
+        .ok_or("none error".to_string())?
+        .as_array()
+        .ok_or("none error".to_string())?
+        .iter()
+        .filter_map(|x| {
+            let x = x.as_str();
+            match x {
+                Some(x) => {
+                    let x = x.trim_start_matches("0x");
+                    match hex::decode(x) {
+                        Ok(x) => {
+                            let x: Option<DigestItem<Hash, AuthorityId, ()>> =
+                                Decode::decode(&mut &x[..]);
+                            x
+                        }
+                        Err(_) => None,
+                    }
+                }
+                None => None,
+            }
+        })
+        .collect::<Vec<_>>();
+    Ok(logs)
 }
 
 fn arrange_authorities(
-	authorities: (u64, Vec<(AuthorityId, u64)>),
-) -> (u64, Vec<(AuthorityId, u64)>) {
-	let (delay, list) = authorities;
-
-	let mut map = HashMap::<AuthorityId, u64>::new();
-	for (key, weight) in list {
-		match map.entry(key) {
-			Entry::Occupied(mut v) => {
-				let v = v.get_mut();
-				*v += weight;
-			}
-			Entry::Vacant(v) => {
-				v.insert(weight);
-			}
-		}
-	}
-
-	(delay, map.into_iter().collect::<Vec<_>>())
+    authorities: Vec<(AuthorityId, u64)>,
+) -> Vec<(AuthorityId, u64)> {
+    let mut map = HashMap::<AuthorityId, u64>::new();
+    for (key, weight) in authorities {
+        match map.entry(key) {
+            Entry::Occupied(mut v) => {
+                let v = v.get_mut();
+                *v += weight;
+            }
+            Entry::Vacant(v) => {
+                v.insert(weight);
+            }
+        }
+    }
+    map.into_iter().collect::<Vec<_>>()
 }
 
 pub fn arrange_block_info(
-	(number, hash, shard, finality_tracker, authorities, pow): (
-		u64,
-		Hex,
-		Option<(u16, u16)>,
-		Option<u64>,
-		Option<(u64, Vec<(AuthorityId, u64)>)>,
-		Option<PowSeal<Block, AuthorityId>>,
-	),
+    (number, hash, shard, finality_tracker, crfg, pow): (
+        u64,
+        Hex,
+        Option<(u16, u16)>,
+        Option<u64>,
+		Option<BlockCrfgInfo>,
+        Option<PowSeal<Block, AuthorityId>>,
+    ),
 ) -> BlockInfo {
-	let shard = shard.map(|x| BlockShardInfo {
-		shard_num: x.0,
-		shard_count: x.1,
-	});
+    let shard = shard.map(|x| BlockShardInfo {
+        shard_num: x.0,
+        shard_count: x.1,
+    });
 
-	let pow = pow.map(|x| {
-		let timestamp = x.timestamp;
-		let time = Local
-			.timestamp_millis(timestamp as i64)
-			.format("%Y-%m-%d %H:%M:%S %z")
-			.to_string();
-		let target = x.pow_target;
+    let pow = pow.map(|x| {
+        let timestamp = x.timestamp;
+        let time = Local
+            .timestamp_millis(timestamp as i64)
+            .format("%Y-%m-%d %H:%M:%S %z")
+            .to_string();
+        let target = x.pow_target;
 
-		let diff = format!("{}", target_to_diff(target));
-		let target = full_target(target);
+        let diff = format!("{}", target_to_diff(target));
+        let target = full_target(target);
 
-		BlockPowInfo {
-			timestamp,
-			time,
-			target,
-			diff,
-		}
-	});
+        BlockPowInfo {
+            timestamp,
+            time,
+            target,
+            diff,
+        }
+    });
 
-	let crfg = authorities.map(|x| BlockCrfgInfo {
-		authorities: x
-			.1
-			.into_iter()
-			.map(|(a, w)| (a.to_vec().into(), w))
-			.collect::<Vec<_>>(),
-	});
+    let finality_tracker = finality_tracker;
 
-	let finality_tracker = finality_tracker;
-
-	BlockInfo {
-		number,
-		hash,
-		shard,
-		finality_tracker,
-		crfg,
-		pow,
-	}
+    BlockInfo {
+        number,
+        hash,
+        shard,
+        finality_tracker,
+        crfg,
+        pow,
+    }
 }
 
 fn full_target(target: U256) -> Hex {
-	let target: [u8; 32] = target.into();
+    let target: [u8; 32] = target.into();
 
-	target.to_vec().into()
+    target.to_vec().into()
 }
 
 fn target_to_diff(target: U256) -> U256 {
-	let diff = U256::max_value() / target;
-	diff
+    let diff = U256::max_value() / target;
+    diff
 }
 
 type AuthorityId = [u8; 32];
@@ -658,72 +667,79 @@ type Hash = [u8; 32];
 
 #[derive(Debug, Serialize)]
 struct Meter {
-	#[serde(skip_serializing_if = "Option::is_none")]
-	best: Option<BlockInfo>,
-	#[serde(skip_serializing_if = "Option::is_none")]
-	finalized: Option<BlockInfo>,
-	#[serde(skip_serializing_if = "Option::is_none")]
-	system: Option<System>,
-	#[serde(skip_serializing_if = "Option::is_none")]
-	peers: Option<Value>,
-	#[serde(skip_serializing_if = "Option::is_none")]
-	network_state: Option<Value>,
-	#[serde(skip_serializing_if = "Option::is_none")]
-	foreign_network_state: Option<Value>,
-	#[serde(skip_serializing_if = "Option::is_none")]
-	runtime: Option<Value>,
-	#[serde(skip_serializing_if = "Option::is_none")]
-	crfg: Option<Value>,
-	#[serde(skip_serializing_if = "Option::is_none")]
-	foreign_status: Option<Value>,
-	#[serde(skip_serializing_if = "Option::is_none")]
-	config: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    best: Option<BlockInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    finalized: Option<BlockInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    system: Option<System>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    peers: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    network_state: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    foreign_network_state: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    runtime: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    crfg: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    foreign_status: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    config: Option<Value>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct System {
-	pub name: Option<Value>,
-	pub version: Option<Value>,
-	pub chain: Option<Value>,
-	pub health: Option<Value>,
+    pub name: Option<Value>,
+    pub version: Option<Value>,
+    pub chain: Option<Value>,
+    pub health: Option<Value>,
 }
 
 #[derive(Debug, Serialize, Clone)]
 pub struct BlockInfo {
-	pub number: u64,
-	pub hash: Hex,
-	pub shard: Option<BlockShardInfo>,
-	pub crfg: Option<BlockCrfgInfo>,
-	pub finality_tracker: Option<u64>,
-	pub pow: Option<BlockPowInfo>,
+    pub number: u64,
+    pub hash: Hex,
+    pub shard: Option<BlockShardInfo>,
+    pub crfg: Option<BlockCrfgInfo>,
+    pub finality_tracker: Option<u64>,
+    pub pow: Option<BlockPowInfo>,
 }
 
 #[derive(Debug, Serialize, Clone)]
 pub struct BlockShardInfo {
-	pub shard_num: u16,
-	pub shard_count: u16,
+    pub shard_num: u16,
+    pub shard_count: u16,
 }
 
 #[derive(Debug, Serialize, Clone)]
 pub struct BlockPowInfo {
-	pub timestamp: u64,
-	pub time: String,
-	pub target: Hex,
-	pub diff: String,
+    pub timestamp: u64,
+    pub time: String,
+    pub target: Hex,
+    pub diff: String,
 }
 
 #[derive(Debug, Serialize, Clone)]
 pub struct BlockCrfgInfo {
-	pub authorities: Vec<(Hex, u64)>,
+    pub signals: Vec<CrfgSignal>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub enum CrfgSignal {
+    AuthoritiesChangeSignal(u64, Vec<(Hex, u64)>),
+    ForcedAuthoritiesChangeSignal(u64, u64, Vec<(Hex, u64)>),
+    SkipSignal(u64),
 }
 
 mod cases {
-	use linked_hash_map::LinkedHashMap;
+    use linked_hash_map::LinkedHashMap;
 
-	use crate::modules::Case;
+    use crate::modules::Case;
 
-	pub fn cases() -> LinkedHashMap<&'static str, Vec<Case>> {
-		vec![(
+    pub fn cases() -> LinkedHashMap<&'static str, Vec<Case>> {
+        vec![(
             "meter",
             vec![Case {
                 desc: "".to_string(),
@@ -1330,17 +1346,17 @@ mod cases {
         )]
             .into_iter()
             .collect()
-	}
+    }
 }
 
 #[cfg(test)]
 mod tests {
-	use crate::modules::base::test::test_module;
+    use crate::modules::base::test::test_module;
 
-	use super::*;
+    use super::*;
 
-	#[test]
-	fn test_cases() {
-		test_module(module());
-	}
+    #[test]
+    fn test_cases() {
+        test_module(module());
+    }
 }
