@@ -426,7 +426,7 @@ async fn get_block_info_async(
 		Hex,
 		Option<(u16, u16)>,
 		Option<u64>,
-		Option<(u64, Vec<(AuthorityId, u64)>)>,
+		Option<BlockCrfgInfo>,
 		Option<PowSeal<Block, AuthorityId>>,
 	),
 	String,
@@ -514,27 +514,55 @@ async fn get_block_info_async(
 		.filter_map(FinalityTrackerDigestItem::as_finality_tracker)
 		.next();
 
-	let authorities = logs
+	let signals = logs
 		.iter()
 		.filter_map(|x| match x {
-			DigestItem::Other(data)
-				if data.len() >= 2 && data[0] == CRFG_LOG_PREFIX && data[1] == 0 =>
-			{
+			DigestItem::Other(data) if data.len() >= 2 && data[0] == CRFG_LOG_PREFIX => {
 				let input = &mut &data[2..];
-				let x: (u64, Vec<(AuthorityId, u64)>) = Decode::decode(input)?;
-				Some(x)
+				match data[1] {
+					0 => {
+						let (delay, authorities): (u64, Vec<(AuthorityId, u64)>) =
+							Decode::decode(input)?;
+						let authorities = arrange_authorities(authorities);
+						let authorities = authorities
+							.into_iter()
+							.map(|(a, b)| (a.to_vec().into(), b))
+							.collect::<Vec<_>>();
+						Some(CrfgSignal::AuthoritiesChangeSignal(delay, authorities))
+					}
+					1 => {
+						let (median, delay, authorities): (u64, u64, Vec<(AuthorityId, u64)>) =
+							Decode::decode(input)?;
+						let authorities = arrange_authorities(authorities);
+						let authorities = authorities
+							.into_iter()
+							.map(|(a, b)| (a.to_vec().into(), b))
+							.collect::<Vec<_>>();
+						Some(CrfgSignal::ForcedAuthoritiesChangeSignal(
+							median,
+							delay,
+							authorities,
+						))
+					}
+					2 => {
+						let number: u64 = Decode::decode(input)?;
+						Some(CrfgSignal::SkipSignal(number))
+					}
+					_ => None,
+				}
 			}
 			_ => None,
 		})
-		.next()
-		.map(arrange_authorities);
+		.collect::<Vec<_>>();
+
+	let crfg = Some(BlockCrfgInfo { signals });
 
 	let pow: Option<PowSeal<Block, AuthorityId>> = logs
 		.iter()
 		.filter_map(CompatibleDigestItem::as_pow_seal)
 		.next();
 
-	Ok((number, hash, shard_info, finalized_number, authorities, pow))
+	Ok((number, hash, shard_info, finalized_number, crfg, pow))
 }
 
 fn get_logs(digest: &Value) -> Result<Vec<DigestItem<Hash, AuthorityId, ()>>, String> {
@@ -567,13 +595,9 @@ fn get_logs(digest: &Value) -> Result<Vec<DigestItem<Hash, AuthorityId, ()>>, St
 	Ok(logs)
 }
 
-fn arrange_authorities(
-	authorities: (u64, Vec<(AuthorityId, u64)>),
-) -> (u64, Vec<(AuthorityId, u64)>) {
-	let (delay, list) = authorities;
-
+fn arrange_authorities(authorities: Vec<(AuthorityId, u64)>) -> Vec<(AuthorityId, u64)> {
 	let mut map = HashMap::<AuthorityId, u64>::new();
-	for (key, weight) in list {
+	for (key, weight) in authorities {
 		match map.entry(key) {
 			Entry::Occupied(mut v) => {
 				let v = v.get_mut();
@@ -584,17 +608,16 @@ fn arrange_authorities(
 			}
 		}
 	}
-
-	(delay, map.into_iter().collect::<Vec<_>>())
+	map.into_iter().collect::<Vec<_>>()
 }
 
 pub fn arrange_block_info(
-	(number, hash, shard, finality_tracker, authorities, pow): (
+	(number, hash, shard, finality_tracker, crfg, pow): (
 		u64,
 		Hex,
 		Option<(u16, u16)>,
 		Option<u64>,
-		Option<(u64, Vec<(AuthorityId, u64)>)>,
+		Option<BlockCrfgInfo>,
 		Option<PowSeal<Block, AuthorityId>>,
 	),
 ) -> BlockInfo {
@@ -620,14 +643,6 @@ pub fn arrange_block_info(
 			target,
 			diff,
 		}
-	});
-
-	let crfg = authorities.map(|x| BlockCrfgInfo {
-		authorities: x
-			.1
-			.into_iter()
-			.map(|(a, w)| (a.to_vec().into(), w))
-			.collect::<Vec<_>>(),
 	});
 
 	let finality_tracker = finality_tracker;
@@ -714,7 +729,14 @@ pub struct BlockPowInfo {
 
 #[derive(Debug, Serialize, Clone)]
 pub struct BlockCrfgInfo {
-	pub authorities: Vec<(Hex, u64)>,
+	pub signals: Vec<CrfgSignal>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub enum CrfgSignal {
+	AuthoritiesChangeSignal(u64, Vec<(Hex, u64)>),
+	ForcedAuthoritiesChangeSignal(u64, u64, Vec<(Hex, u64)>),
+	SkipSignal(u64),
 }
 
 mod cases {
