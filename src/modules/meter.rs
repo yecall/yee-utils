@@ -99,6 +99,12 @@ pub fn commands<'a, 'b>() -> Vec<Command<'a, 'b>> {
 					.long("config")
 					.help("Config")
 					.required(false),
+			)
+			.arg(
+				Arg::with_name("SYNC_STATE")
+					.long("sync-state")
+					.help("Sync state")
+					.required(false),
 			),
 		f: meter,
 	}]
@@ -118,6 +124,7 @@ fn meter(matches: &ArgMatches) -> Result<Vec<String>, String> {
 		crfg: matches.is_present("CRFG"),
 		foreign_status: matches.is_present("FOREIGN_STATUS"),
 		config: matches.is_present("CONFIG"),
+		sync_state: matches.is_present("SYNC_STATE"),
 	};
 
 	if enable_list.all_false() {
@@ -132,6 +139,7 @@ fn meter(matches: &ArgMatches) -> Result<Vec<String>, String> {
 			crfg: true,
 			foreign_status: true,
 			config: true,
+			sync_state: true,
 		}
 	}
 
@@ -153,6 +161,7 @@ struct EnableList {
 	crfg: bool,
 	foreign_status: bool,
 	config: bool,
+	sync_state: bool,
 }
 
 impl EnableList {
@@ -167,6 +176,7 @@ impl EnableList {
 			&& !self.crfg
 			&& !self.foreign_status
 			&& !self.config
+			&& !self.sync_state
 	}
 }
 
@@ -192,6 +202,8 @@ async fn get_meter(rpc: &str, enable_list: &EnableList) -> Meter {
 
 	let config = meter_get_config(rpc, enable_list.config);
 
+	let sync_state = meter_get_sync_state(rpc, enable_list.sync_state);
+
 	let (
 		best,
 		finalized,
@@ -203,6 +215,7 @@ async fn get_meter(rpc: &str, enable_list: &EnableList) -> Meter {
 		crfg,
 		foreign_status,
 		config,
+		sync_state,
 	) = tokio::join!(
 		best,
 		finalized,
@@ -213,7 +226,8 @@ async fn get_meter(rpc: &str, enable_list: &EnableList) -> Meter {
 		runtime,
 		crfg,
 		foreign_status,
-		config
+		config,
+		sync_state,
 	);
 
 	let meter = Meter {
@@ -227,6 +241,7 @@ async fn get_meter(rpc: &str, enable_list: &EnableList) -> Meter {
 		crfg: crfg.ok(),
 		foreign_status: foreign_status.ok(),
 		config: config.ok(),
+		sync_state: sync_state.ok(),
 	};
 
 	meter
@@ -370,6 +385,19 @@ pub async fn meter_get_config(rpc: &str, enabled: bool) -> Result<Value, String>
 		return Err("disabled".to_string());
 	}
 	let result = base::rpc_call::<_, Value>(rpc, "system_config", &())
+		.await?
+		.result;
+
+	let result = result.ok_or("none")?;
+
+	Ok(result)
+}
+
+pub async fn meter_get_sync_state(rpc: &str, enabled: bool) -> Result<Value, String> {
+	if !enabled {
+		return Err("disabled".to_string());
+	}
+	let result = base::rpc_call::<_, Value>(rpc, "system_syncState", &())
 		.await?
 		.result;
 
@@ -627,21 +655,28 @@ pub fn arrange_block_info(
 	});
 
 	let pow = pow.map(|x| {
+		let authority_id = x.authority_id;
 		let timestamp = x.timestamp;
 		let time = Local
 			.timestamp_millis(timestamp as i64)
 			.format("%Y-%m-%d %H:%M:%S %z")
 			.to_string();
 		let target = x.pow_target;
+		let extra_version = x.extra_version;
+		let fork_id = x.extra.fork_id;
 
 		let diff = format!("{}", target_to_diff(target));
-		let target = full_target(target);
+		let authority_id = authority_id.to_vec().into();
+		let target = u256_to_hex(target);
 
 		BlockPowInfo {
+			authority_id,
 			timestamp,
 			time,
 			target,
 			diff,
+			extra_version,
+			extra: BlockPowSealExtra { fork_id },
 		}
 	});
 
@@ -657,7 +692,7 @@ pub fn arrange_block_info(
 	}
 }
 
-fn full_target(target: U256) -> Hex {
+fn u256_to_hex(target: U256) -> Hex {
 	let target: [u8; 32] = target.into();
 
 	target.to_vec().into()
@@ -693,6 +728,8 @@ struct Meter {
 	foreign_status: Option<Value>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	config: Option<Value>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	sync_state: Option<Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -721,10 +758,18 @@ pub struct BlockShardInfo {
 
 #[derive(Debug, Serialize, Clone)]
 pub struct BlockPowInfo {
+	pub authority_id: Hex,
 	pub timestamp: u64,
 	pub time: String,
 	pub target: Hex,
 	pub diff: String,
+	pub extra_version: u32,
+	pub extra: BlockPowSealExtra,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct BlockPowSealExtra {
+	pub fork_id: Option<u32>,
 }
 
 #[derive(Debug, Serialize, Clone)]
